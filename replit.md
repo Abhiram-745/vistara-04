@@ -1,80 +1,81 @@
 # Vistari - GCSE Study Planning Application
 
 ## Overview
-Vistari is a GCSE revision planner that creates personalized study timetables that fit around student schedules. Originally built on Lovable, migrated to Replit with dual AI provider integration.
+Vistari is a GCSE revision planner that creates personalized study timetables that fit around student schedules. Built with React frontend and Express backend, using Neon Postgres database with Drizzle ORM.
 
 ## Recent Changes
-**November 29, 2025 - Dual AI Provider Setup**
-- Configured Bytez API with Gemini 2.5 Pro for image-based topic parsing and complex timetable generation
-- Configured Open Router with Mistral 7B for schedule adjustments, analysis, and other AI features
-- All edge functions use server-side secret management (Deno.env.get)
-- API keys are stored securely as Supabase secrets (not passed through frontend)
+**November 29, 2025 - Email Verification Migration**
+- Migrated email verification from Supabase Edge Functions to Express server endpoints
+- Added Resend API integration for sending verification emails (domain: vistara-ai.app)
+- Updated AuthContext to use Express server endpoints instead of Supabase auth
+- Email verification endpoints: /api/send-verification-code, /api/verify-code, /api/check-email-verified/:email
 
-## ⚠️ CRITICAL SETUP REQUIREMENTS
+**November 29, 2025 - Database Migration**
+- Migrated from Supabase to Neon Postgres database
+- Using Drizzle ORM for database operations
+- All tables pushed and operational: users, profiles, timetables, homeworks, events, study_sessions, achievements, study_groups, email_verifications, etc.
 
-**You must set two API keys as Supabase secrets:**
+## Architecture
 
-1. **BYTEZ_API_KEY** (for image parsing and timetable generation)
-   - Go to your Supabase project dashboard
-   - Navigate to Settings → Secrets
-   - Create a secret named `BYTEZ_API_KEY`
-   - Value: `840ecbd12ca7f2cfd93354ebb304535e`
+### Backend (Express Server)
+- **Auth endpoints**: /api/auth/signup, /api/auth/login, /api/auth/user
+- **Email verification**: /api/send-verification-code, /api/verify-code, /api/check-email-verified
+- **Study features**: timetables, homeworks, events, study sessions, topics, subjects
+- **Social features**: study groups, leaderboards, group achievements
 
-2. **OPEN_ROUTER_API_KEY** (for schedule adjustments and analysis)
-   - Already configured
-   - Value: Uses free Mistral 7B model via Open Router
+### Database (Neon Postgres)
+- Connection via DATABASE_URL environment variable
+- Schema managed with Drizzle ORM in shared/schema.ts
+- Push schema updates with: `npm run db:push`
 
-**Without these secrets, AI features will fail.**
+### Frontend (React + Vite)
+- React with TypeScript
+- Tailwind CSS + shadcn/ui components
+- AuthContext for authentication state management
+- API calls to Express backend
+
+## Environment Variables Required
+- `DATABASE_URL` - Neon Postgres connection string
+- `RESEND_API_KEY` - For sending verification emails
+- `JWT_SECRET` - For token signing (optional, has default)
+- `BYTEZ_API_KEY` - For image-based AI features
+- `OPEN_ROUTER_API_KEY` - For text-based AI features
 
 ## AI Configuration
 
 ### Bytez API (Image-Based AI)
 - **Provider**: Bytez (bytez.com)
 - **Model**: Google Gemini 2.5 Pro
-- **Used for**: 
-  - Topic extraction from images (parse-topics function)
-  - Complex timetable generation (generate-timetable function)
-- **Secret**: `BYTEZ_API_KEY`
+- **Used for**: Topic extraction from images, complex timetable generation
 
 ### Open Router API (Text-Based AI)
 - **Provider**: Open Router (openrouter.ai)
-- **Model**: Mistral 7B Instruct (mistralai/mistral-7b-instruct:free)
-- **Used for**: 
-  - Schedule adjustments (adjust-schedule)
-  - Tomorrow's schedule planning (regenerate-tomorrow)
-  - Test score analysis (analyze-test-score)
-  - Learning insights generation (generate-insights)
-  - Email validation (validate-email)
-  - Topic difficulty analysis (analyze-difficulty)
-- **Secret**: `OPEN_ROUTER_API_KEY`
-
-## Edge Functions (supabase/functions/)
-1. **parse-topics** - Extracts topics from images (Bytez + Gemini 2.5 Pro)
-2. **generate-timetable** - Creates personalized study schedules (Bytez + Gemini 2.5 Pro)
-3. **adjust-schedule** - Modifies schedules based on user requests (Open Router + Mistral 7B)
-4. **regenerate-tomorrow** - Regenerates next day's schedule (Open Router + Mistral 7B)
-5. **analyze-test-score** - Provides feedback on test performance (Open Router + Mistral 7B)
-6. **generate-insights** - Creates learning analytics and insights (Open Router + Mistral 7B)
-7. **validate-email** - AI-assisted email validation (Open Router + Mistral 7B)
-8. **analyze-difficulty** - Analyzes topic difficulty and priorities (Open Router + Mistral 7B)
-
-## Project Structure
-- `/client` - React frontend with Vite
-- `/server` - Express backend
-- `/supabase/functions` - Edge functions with dual AI provider integration
-- `/shared` - Shared types and schemas
+- **Model**: Mistral 7B Instruct
+- **Used for**: Schedule adjustments, test score analysis, learning insights
 
 ## Running the Project
-The workflow "Start application" runs `npm run dev` which starts both frontend and backend on port 5000.
+The workflow "Start application" runs `npm run dev` which starts:
+- Express backend on port 3000 (development)
+- Vite frontend on port 5000
+
+## Project Structure
+```
+/server - Express backend (index.ts, db.ts)
+/src - React frontend
+  /context - AuthContext for authentication
+  /components - UI components
+  /pages - Route pages
+/shared - Shared types and schemas (schema.ts)
+/supabase/functions - Legacy edge functions (deprecated, migrated to Express)
+```
 
 ## User Preferences
-- Dual AI approach: Gemini 2.5 Pro for complex image/schedule tasks, Mistral 7B for faster text analysis
 - Security-first: All API keys stored on server, never passed through frontend
-- Cost optimization: Using free tier models where possible
+- Dual AI approach: Gemini 2.5 Pro for complex tasks, Mistral 7B for faster analysis
+- Email verification required for new signups
 
 ## Technical Notes
-- All Deno edge functions access secrets via `Deno.env.get()`
-- Bytez API endpoint: `https://api.bytez.com/models/v2/openai/v1/chat/completions`
-- Open Router endpoint: `https://openrouter.ai/api/v1/chat/completions`
-- Frontend never receives or stores API keys
-- Application is production-ready after both Supabase secrets are configured
+- Frontend development server proxies API calls to backend
+- JWT tokens stored in localStorage for authentication
+- Email verification codes expire after 10 minutes with max 5 attempts
+- All API endpoints use proper error handling and validation
