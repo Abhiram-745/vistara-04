@@ -207,7 +207,7 @@ const OnboardingWizard = ({ onComplete, onCancel }: OnboardingWizardProps) => {
           </CardDescription>
         </CardHeader>
         <CardContent className="flex-1 overflow-hidden flex flex-col min-h-0 px-4 sm:px-6">
-          <div className="flex-1 overflow-y-auto min-h-0 pr-2" style={{ maxHeight: 'calc(100vh - 18rem)' }}>
+          <div className="flex-1 overflow-y-auto min-h-0 pr-2 pb-4">
             <div className="space-y-4 pb-4">
               {step === 1 && (
                 <div data-tour="subjects-step">
