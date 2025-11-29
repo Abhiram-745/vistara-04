@@ -41,6 +41,9 @@ import {
   YAxis,
   Tooltip as RechartsTooltip,
   Legend,
+  ScatterChart,
+  Scatter,
+  CartesianGrid,
 } from "recharts";
 import {
   ChartContainer,
@@ -286,103 +289,143 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                 </TabsList>
 
                     <TabsContent value="overview" className="space-y-6">
-                      {/* Topic Confidence Heatmap */}
-                      <ChartCard title="Topic Confidence Heatmap" icon={<Target className="h-4 w-4" />}>
-                        <TooltipProvider>
-                          {(() => {
-                            // Build heatmap data from insights
-                            const topicData: Array<{ topic: string; subject: string; confidence: number }> = [];
+                      {/* Topic Confidence Scatter Chart */}
+                      <ChartCard title="Topic Confidence Map" icon={<Target className="h-4 w-4" />}>
+                        {(() => {
+                          // Build scatter chart data with reasons
+                          const heatmapChartData: Array<{
+                            index: number;
+                            topic: string;
+                            subject: string;
+                            confidence: number;
+                            reason: string;
+                            type: string;
+                          }> = [];
+
+                          // Add struggling topics with reasons
+                          insights.strugglingTopics.forEach((t, idx) => {
+                            const confidence = t.avgFocusLevel 
+                              ? Math.max(1, Math.min(10, t.avgFocusLevel / 10))
+                              : Math.max(1, Math.min(10, 11 - (t.avgDifficulty || 7)));
                             
-                            // Add struggling topics (low confidence)
-                            insights.strugglingTopics.forEach(t => {
-                              topicData.push({
-                                topic: t.topic,
-                                subject: t.subject,
-                                confidence: Math.max(1, Math.min(10, (t.avgFocusLevel || 30) / 10))
-                              });
+                            heatmapChartData.push({
+                              index: idx,
+                              topic: t.topic,
+                              subject: t.subject,
+                              confidence,
+                              reason: t.reason || "Needs more practice",
+                              type: 'struggling'
                             });
+                          });
+
+                          // Add strong areas with reasons
+                          insights.strongAreas.forEach((t, idx) => {
+                            const confidence = t.avgFocusLevel 
+                              ? Math.max(1, Math.min(10, t.avgFocusLevel / 10))
+                              : Math.max(1, Math.min(10, 11 - (t.avgDifficulty || 3)));
                             
-                            // Add strong areas (high confidence)
-                            insights.strongAreas.forEach(t => {
-                              topicData.push({
-                                topic: t.topic,
-                                subject: t.subject,
-                                confidence: Math.max(1, Math.min(10, (t.avgFocusLevel || 80) / 10))
-                              });
+                            heatmapChartData.push({
+                              index: insights.strugglingTopics.length + idx,
+                              topic: t.topic,
+                              subject: t.subject,
+                              confidence,
+                              reason: t.reason || "Strong understanding",
+                              type: 'strong'
                             });
+                          });
 
-                            // Helper to get color based on confidence
-                            const getConfidenceColor = (confidence: number): string => {
-                              if (confidence >= 8) return "bg-emerald-500";
-                              if (confidence >= 6) return "bg-green-400";
-                              if (confidence >= 5) return "bg-yellow-400";
-                              if (confidence >= 3) return "bg-orange-400";
-                              return "bg-red-500";
-                            };
+                          return heatmapChartData.length > 0 ? (
+                            <div className="space-y-4">
+                              <ResponsiveContainer width="100%" height={300}>
+                                <ScatterChart margin={{ top: 20, right: 20, bottom: 60, left: 40 }}>
+                                  <CartesianGrid strokeDasharray="3 3" stroke="hsl(var(--border))" />
+                                  <XAxis 
+                                    dataKey="index" 
+                                    name="Topic" 
+                                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 10 }}
+                                    label={{ value: 'Topics', position: 'insideBottom', offset: -10, style: { fill: 'hsl(var(--muted-foreground))' } }}
+                                  />
+                                  <YAxis 
+                                    dataKey="confidence" 
+                                    name="Confidence" 
+                                    domain={[0, 10]}
+                                    tick={{ fill: 'hsl(var(--muted-foreground))' }}
+                                    label={{ value: 'Confidence Level', angle: -90, position: 'insideLeft', style: { fill: 'hsl(var(--muted-foreground))' } }}
+                                  />
+                                  <RechartsTooltip
+                                    content={({ payload }) => {
+                                      if (!payload || !payload.length) return null;
+                                      const data = payload[0].payload;
+                                      return (
+                                        <div className="bg-card border rounded-lg p-3 shadow-lg max-w-xs">
+                                          <p className="font-semibold text-sm">{data.topic}</p>
+                                          <p className="text-xs text-muted-foreground mb-2">{data.subject}</p>
+                                          <div className="flex items-center gap-2 mb-2">
+                                            <div 
+                                              className={`w-3 h-3 rounded-full ${
+                                                data.confidence >= 7 ? 'bg-emerald-500' : 
+                                                data.confidence >= 4 ? 'bg-yellow-400' : 'bg-red-500'
+                                              }`} 
+                                            />
+                                            <span className="text-sm">Confidence: {data.confidence.toFixed(1)}/10</span>
+                                          </div>
+                                          {data.reason && (
+                                            <p className="text-xs text-muted-foreground border-t pt-2 mt-2">
+                                              <span className="font-medium">
+                                                {data.type === 'struggling' ? 'Why it\'s hard: ' : 'Why you excel: '}
+                                              </span>
+                                              {data.reason}
+                                            </p>
+                                          )}
+                                        </div>
+                                      );
+                                    }}
+                                  />
+                                  <Scatter 
+                                    name="Topics" 
+                                    data={heatmapChartData}
+                                    shape={(props: any) => {
+                                      const { cx, cy, payload } = props;
+                                      const color = payload.confidence >= 7 ? '#22c55e' : 
+                                                   payload.confidence >= 4 ? '#facc15' : '#ef4444';
+                                      return (
+                                        <circle 
+                                          cx={cx} 
+                                          cy={cy} 
+                                          r={10} 
+                                          fill={color}
+                                          stroke="white"
+                                          strokeWidth={2}
+                                          style={{ cursor: 'pointer' }}
+                                        />
+                                      );
+                                    }}
+                                  />
+                                </ScatterChart>
+                              </ResponsiveContainer>
 
-                            // Group by subject for better organization
-                            const groupedBySubject = topicData.reduce((acc, item) => {
-                              if (!acc[item.subject]) acc[item.subject] = [];
-                              acc[item.subject].push(item);
-                              return acc;
-                            }, {} as Record<string, typeof topicData>);
-
-                            return topicData.length > 0 ? (
-                              <div className="space-y-4">
-                                {Object.entries(groupedBySubject).map(([subject, topics]) => (
-                                  <div key={subject}>
-                                    <h4 className="text-xs font-semibold mb-2 text-muted-foreground">{subject}</h4>
-                                    <div className="flex flex-wrap gap-2">
-                                      {topics.map((item, idx) => (
-                                        <Tooltip key={idx}>
-                                          <TooltipTrigger asChild>
-                                            <div
-                                              className={`
-                                                w-12 h-12 rounded-lg flex items-center justify-center 
-                                                text-white font-semibold text-sm cursor-pointer
-                                                transition-all hover:scale-105 hover:shadow-lg
-                                                ${getConfidenceColor(item.confidence)}
-                                              `}
-                                            >
-                                              {item.confidence.toFixed(0)}
-                                            </div>
-                                          </TooltipTrigger>
-                                          <TooltipContent className="max-w-[200px]">
-                                            <div className="text-center">
-                                              <p className="font-semibold text-xs">{item.topic}</p>
-                                              <p className="text-xs text-muted-foreground">{item.subject}</p>
-                                              <p className="text-xs mt-1">Confidence: {item.confidence.toFixed(1)}/10</p>
-                                            </div>
-                                          </TooltipContent>
-                                        </Tooltip>
-                                      ))}
-                                    </div>
-                                  </div>
-                                ))}
-                                
-                                {/* Legend */}
-                                <div className="flex items-center justify-center gap-4 mt-4 text-xs pt-4 border-t">
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-4 h-4 rounded bg-emerald-500" />
-                                    <span>High</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-4 h-4 rounded bg-yellow-400" />
-                                    <span>Medium</span>
-                                  </div>
-                                  <div className="flex items-center gap-1">
-                                    <div className="w-4 h-4 rounded bg-red-500" />
-                                    <span>Low</span>
-                                  </div>
+                              {/* Legend */}
+                              <div className="flex items-center justify-center gap-6 text-xs border-t pt-4">
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 rounded-full bg-emerald-500" />
+                                  <span>High Confidence (7-10)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 rounded-full bg-yellow-400" />
+                                  <span>Medium (4-6)</span>
+                                </div>
+                                <div className="flex items-center gap-2">
+                                  <div className="w-4 h-4 rounded-full bg-red-500" />
+                                  <span>Low (1-3)</span>
                                 </div>
                               </div>
-                            ) : (
-                              <p className="text-sm text-muted-foreground text-center py-8">
-                                No topic confidence data available yet
-                              </p>
-                            );
-                          })()}
-                        </TooltipProvider>
+                            </div>
+                          ) : (
+                            <p className="text-sm text-muted-foreground text-center py-8">
+                              No topic confidence data available yet
+                            </p>
+                          );
+                        })()}
                       </ChartCard>
 
                       {/* Topics Performance Table */}
