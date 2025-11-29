@@ -1,12 +1,29 @@
 import { useState, useEffect } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Brain, Sparkles, TrendingUp, TrendingDown, Lightbulb, Target, Loader2, Clock, BarChart3 } from "lucide-react";
 import { toast } from "sonner";
 import PaywallDialog from "@/components/PaywallDialog";
 import { useQueryClient } from "@tanstack/react-query";
+
+const ChartCard = ({ title, icon, children, className = "" }: { 
+  title: string; 
+  icon: React.ReactNode; 
+  children: React.ReactNode; 
+  className?: string;
+}) => (
+  <Card className={`border-amber-100 dark:border-amber-900/30 bg-gradient-to-br from-amber-50/50 to-orange-50/30 dark:from-amber-950/20 dark:to-orange-950/10 ${className}`}>
+    <CardHeader className="pb-2">
+      <CardTitle className="text-base font-semibold flex items-center gap-2">
+        {icon}
+        {title}
+      </CardTitle>
+    </CardHeader>
+    <CardContent>{children}</CardContent>
+  </Card>
+);
 import {
   BarChart,
   Bar,
@@ -180,113 +197,118 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
 
   return (
     <div className="space-y-4">
-      <Card>
+      <Card className="border-primary/20 bg-gradient-to-br from-amber-50/30 to-orange-50/20 dark:from-amber-950/10 dark:to-orange-950/5">
         <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <BarChart3 className="h-5 w-5 text-primary" />
-            AI Overall Analysis
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
           <div className="flex items-center justify-between">
-            <p className="text-sm text-muted-foreground">
-              {reflections.length === 0 
-                ? "Complete study sessions and add reflections to generate AI insights!"
-                : `${reflections.length} reflections recorded`
-              }
-            </p>
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Brain className="h-5 w-5 text-primary" />
+                AI Study Insights
+              </CardTitle>
+              <CardDescription>
+                Personalized analysis based on your reflections and study patterns
+              </CardDescription>
+            </div>
             <Button
               onClick={generateInsights}
               disabled={loading || reflections.length === 0}
               className="gap-2"
-              size="sm"
             >
-              {loading ? (
-                <>
-                  <Loader2 className="h-4 w-4 animate-spin" />
-                  Analyzing...
-                </>
-              ) : (
-                <>
-                  <Sparkles className="h-4 w-4" />
-                  Generate AI Analysis
-                </>
-              )}
+              <Sparkles className="h-4 w-4" />
+              {loading ? "Analyzing..." : insights ? "Refresh Insights" : "Generate Insights"}
             </Button>
           </div>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {reflections.length === 0 && (
+            <p className="text-sm text-muted-foreground">
+              Complete study sessions and add reflections to generate AI insights!
+            </p>
+          )}
 
-          {reflections.length === 0 ? null : (
-            <>
+          {insights && (
+            <div className="space-y-6 pt-4 border-t">
+              {/* Overall Summary */}
+              <div className="p-4 bg-primary/5 rounded-lg">
+                <p className="text-sm">{insights.overallSummary}</p>
+              </div>
 
-              {insights && (
-                <div className="space-y-6 pt-4 border-t">
-                  {/* Overall Summary */}
-                  <div className="p-4 bg-primary/5 rounded-lg">
-                    <p className="text-sm">{insights.overallSummary}</p>
+              {/* Key Metrics Summary */}
+              <div className="grid grid-cols-3 gap-4">
+                <div className="text-center p-4 bg-card rounded-xl border shadow-sm">
+                  <div className="text-3xl font-display font-bold text-foreground">
+                    {insights.strugglingTopics.length}
                   </div>
+                  <div className="text-xs text-muted-foreground mt-1">Topics to Focus</div>
+                </div>
+                <div className="text-center p-4 bg-card rounded-xl border shadow-sm">
+                  <div className="text-3xl font-display font-bold text-foreground">
+                    {insights.strongAreas.length}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">Strong Areas</div>
+                </div>
+                <div className="text-center p-4 bg-card rounded-xl border shadow-sm">
+                  <div className="text-3xl font-display font-bold text-emerald-600">
+                    {Object.keys(insights.subjectBreakdown).length}
+                  </div>
+                  <div className="text-xs text-muted-foreground mt-1">Subjects Analyzed</div>
+                </div>
+              </div>
 
-                  <Tabs defaultValue="overview" className="w-full">
-                    <TabsList className="grid w-full grid-cols-4">
-                      <TabsTrigger value="overview">Overview</TabsTrigger>
-                      <TabsTrigger value="performance">Performance</TabsTrigger>
-                      <TabsTrigger value="insights">Insights</TabsTrigger>
-                      <TabsTrigger value="peak-hours">Peak Hours</TabsTrigger>
-                    </TabsList>
+              <Tabs defaultValue="overview" className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="performance">Performance</TabsTrigger>
+                  <TabsTrigger value="insights">Insights</TabsTrigger>
+                  <TabsTrigger value="peak-hours">Peak Hours</TabsTrigger>
+                </TabsList>
 
                     <TabsContent value="overview" className="space-y-6">
                       {/* Subject Confidence Radar Chart */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base flex items-center gap-2">
-                            <Target className="h-4 w-4" />
-                            Subject Confidence Map
-                          </CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <div className="h-[250px] sm:h-[350px] w-full flex items-center justify-center">
-                            <ResponsiveContainer width="100%" height="100%">
-                              <RadarChart 
-                                data={Object.entries(insights.subjectBreakdown).map(([subject, data]) => ({
-                                  subject: window.innerWidth < 640 ? (subject.length > 10 ? subject.substring(0, 10) + '...' : subject) : (subject.length > 15 ? subject.substring(0, 15) + '...' : subject),
-                                  fullSubject: subject,
-                                  confidence: data.confidenceScore,
-                                }))}
-                                margin={{ top: 10, right: 15, bottom: 10, left: 15 }}
-                              >
-                                <PolarGrid strokeDasharray="3 3" />
-                                <PolarAngleAxis 
-                                  dataKey="subject" 
-                                  tick={{ fill: 'hsl(var(--foreground))', fontSize: window.innerWidth < 640 ? 10 : 12 }}
-                                />
-                                <PolarRadiusAxis 
-                                  angle={90} 
-                                  domain={[0, 10]}
-                                  tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: window.innerWidth < 640 ? 9 : 11 }}
-                                />
-                                <Radar
-                                  name="Confidence Level"
-                                  dataKey="confidence"
-                                  stroke="hsl(var(--primary))"
-                                  fill="hsl(var(--primary))"
-                                  fillOpacity={0.5}
-                                  strokeWidth={2}
-                                />
-                                <Tooltip 
-                                  contentStyle={{
-                                    backgroundColor: 'hsl(var(--card))',
-                                    border: '1px solid hsl(var(--border))',
-                                    borderRadius: '8px',
-                                  }}
-                                  formatter={(value: any, name: any, props: any) => [
-                                    `${value}/10`,
-                                    props.payload.fullSubject || 'Confidence'
-                                  ]}
-                                />
-                              </RadarChart>
-                            </ResponsiveContainer>
-                          </div>
-                        </CardContent>
-                      </Card>
+                      <ChartCard title="Subject Confidence Map" icon={<Target className="h-4 w-4" />}>
+                        <div className="h-[250px] sm:h-[350px] w-full flex items-center justify-center">
+                          <ResponsiveContainer width="100%" height="100%">
+                            <RadarChart 
+                              data={Object.entries(insights.subjectBreakdown).map(([subject, data]) => ({
+                                subject: window.innerWidth < 640 ? (subject.length > 10 ? subject.substring(0, 10) + '...' : subject) : (subject.length > 15 ? subject.substring(0, 15) + '...' : subject),
+                                fullSubject: subject,
+                                confidence: data.confidenceScore,
+                              }))}
+                              margin={{ top: 10, right: 15, bottom: 10, left: 15 }}
+                            >
+                              <PolarGrid stroke="hsl(var(--border))" />
+                              <PolarAngleAxis 
+                                dataKey="subject" 
+                                tick={{ fill: 'hsl(var(--foreground))', fontSize: window.innerWidth < 640 ? 10 : 12 }}
+                              />
+                              <PolarRadiusAxis 
+                                angle={90} 
+                                domain={[0, 10]}
+                                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: window.innerWidth < 640 ? 9 : 11 }}
+                              />
+                              <Radar
+                                name="Confidence Level"
+                                dataKey="confidence"
+                                stroke="#22c55e"
+                                fill="#22c55e"
+                                fillOpacity={0.3}
+                                strokeWidth={2}
+                              />
+                              <Tooltip 
+                                contentStyle={{
+                                  backgroundColor: 'hsl(var(--card))',
+                                  border: '1px solid hsl(var(--border))',
+                                  borderRadius: '8px',
+                                }}
+                                formatter={(value: any, name: any, props: any) => [
+                                  `${value}/10`,
+                                  props.payload.fullSubject || 'Confidence'
+                                ]}
+                              />
+                            </RadarChart>
+                          </ResponsiveContainer>
+                        </div>
+                      </ChartCard>
 
                       {/* Topics Performance Table */}
                       <Card>
@@ -388,35 +410,42 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
 
                     <TabsContent value="performance" className="space-y-6">
                       {/* Subject Performance Bar Chart */}
-                      <Card>
-                        <CardHeader>
-                          <CardTitle className="text-base">Subject Performance Breakdown</CardTitle>
-                        </CardHeader>
-                        <CardContent>
-                          <ChartContainer
-                            config={Object.entries(insights.subjectBreakdown).reduce((acc, [subject], idx) => ({
-                              ...acc,
-                              [subject]: {
-                                label: subject,
-                                color: `hsl(var(--chart-${(idx % 5) + 1}))`,
-                              }
-                            }), {})}
-                            className="h-[300px]"
-                          >
-                            <ResponsiveContainer width="100%" height="100%">
-                              <BarChart data={Object.entries(insights.subjectBreakdown).map(([subject, data]) => ({
-                                subject,
-                                score: data.confidenceScore,
-                                topics: data.topicsCount,
-                              }))}>
-                                <XAxis dataKey="subject" />
-                                <YAxis domain={[0, 10]} />
-                                <ChartTooltip content={<ChartTooltipContent />} />
-                                <Legend />
-                                <Bar dataKey="score" name="Confidence Score" fill="hsl(var(--primary))" radius={[8, 8, 0, 0]} />
-                              </BarChart>
-                            </ResponsiveContainer>
-                          </ChartContainer>
+                      <ChartCard title="Subject Performance Breakdown" icon={<BarChart3 className="h-4 w-4" />}>
+                        <ChartContainer
+                          config={Object.entries(insights.subjectBreakdown).reduce((acc, [subject], idx) => ({
+                            ...acc,
+                            [subject]: {
+                              label: subject,
+                              color: `hsl(var(--chart-${(idx % 5) + 1}))`,
+                            }
+                          }), {})}
+                          className="h-[300px]"
+                        >
+                          <ResponsiveContainer width="100%" height="100%">
+                            <BarChart data={Object.entries(insights.subjectBreakdown).map(([subject, data]) => ({
+                              subject,
+                              score: data.confidenceScore,
+                              topics: data.topicsCount,
+                            }))}>
+                              <XAxis dataKey="subject" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                              <YAxis domain={[0, 10]} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
+                              <Tooltip 
+                                contentStyle={{ 
+                                  backgroundColor: 'hsl(var(--card))',
+                                  border: '1px solid hsl(var(--border))',
+                                  borderRadius: '8px'
+                                }}
+                              />
+                              <Bar dataKey="score" name="Confidence Score" fill="#22c55e" radius={[8, 8, 0, 0]} />
+                            </BarChart>
+                          </ResponsiveContainer>
+                        </ChartContainer>
+                          <div className="flex items-center justify-center gap-6 mt-4 text-xs">
+                            <div className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full bg-emerald-500" />
+                              <span className="text-muted-foreground">Confidence Score</span>
+                            </div>
+                          </div>
                           
                           <div className="mt-4 space-y-2">
                             {Object.entries(insights.subjectBreakdown).map(([subject, data]) => (
@@ -429,8 +458,7 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                               </div>
                             ))}
                           </div>
-                        </CardContent>
-                      </Card>
+                      </ChartCard>
 
                       {/* Struggling vs Strong Topics */}
                       <div className="grid gap-4 md:grid-cols-2">
@@ -605,69 +633,63 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                             </Card>
                           </div>
 
-                          <Card>
-                            <CardHeader>
-                              <CardTitle className="text-base flex items-center gap-2">
-                                <BarChart3 className="h-4 w-4" />
-                                Performance by Time Window
-                              </CardTitle>
-                            </CardHeader>
-                            <CardContent>
-                              <div className="h-[250px] sm:h-[300px] w-full">
-                                <ResponsiveContainer width="100%" height="100%">
-                                  <BarChart
-                                    data={[
-                                      {
-                                        window: "Morning",
-                                        completion: parseFloat((insights.peakStudyHours.completionRateByWindow.morning * 100).toFixed(0)),
-                                        difficulty: insights.peakStudyHours.avgDifficultyByWindow.morning || 0,
-                                      },
-                                      {
-                                        window: "Afternoon",
-                                        completion: parseFloat((insights.peakStudyHours.completionRateByWindow.afternoon * 100).toFixed(0)),
-                                        difficulty: insights.peakStudyHours.avgDifficultyByWindow.afternoon || 0,
-                                      },
-                                      {
-                                        window: "Evening",
-                                        completion: parseFloat((insights.peakStudyHours.completionRateByWindow.evening * 100).toFixed(0)),
-                                        difficulty: insights.peakStudyHours.avgDifficultyByWindow.evening || 0,
-                                      },
-                                    ]}
-                                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                                  >
-                                    <XAxis 
-                                      dataKey="window" 
-                                      tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
-                                    />
-                                    <YAxis 
-                                      tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                                    />
-                                    <Tooltip
-                                      contentStyle={{
-                                        backgroundColor: 'hsl(var(--card))',
-                                        border: '1px solid hsl(var(--border))',
-                                        borderRadius: '8px',
-                                        fontSize: 12
-                                      }}
-                                    />
-                                    <Legend wrapperStyle={{ fontSize: 12 }} />
-                                    <Bar 
-                                      dataKey="completion" 
-                                      name="Completion Rate %" 
-                                      fill="hsl(var(--primary))" 
-                                      radius={[8, 8, 0, 0]} 
-                                    />
-                                    <Bar 
-                                      dataKey="difficulty" 
-                                      name="Avg Difficulty (1-10)" 
-                                      fill="hsl(var(--destructive))" 
-                                      radius={[8, 8, 0, 0]} 
-                                    />
-                                  </BarChart>
-                                </ResponsiveContainer>
-                              </div>
-                            </CardContent>
-                          </Card>
+                          <ChartCard title="Performance by Time Window" icon={<Clock className="h-4 w-4" />}>
+                            <p className="text-sm text-muted-foreground mb-4">
+                              Your most productive times based on session completion rates
+                            </p>
+                            <div className="h-[250px] sm:h-[300px] w-full">
+                              <ResponsiveContainer width="100%" height="100%">
+                                <BarChart
+                                  data={[
+                                    {
+                                      window: "Morning",
+                                      completion: parseFloat((insights.peakStudyHours.completionRateByWindow.morning * 100).toFixed(0)),
+                                      difficulty: insights.peakStudyHours.avgDifficultyByWindow.morning || 0,
+                                    },
+                                    {
+                                      window: "Afternoon",
+                                      completion: parseFloat((insights.peakStudyHours.completionRateByWindow.afternoon * 100).toFixed(0)),
+                                      difficulty: insights.peakStudyHours.avgDifficultyByWindow.afternoon || 0,
+                                    },
+                                    {
+                                      window: "Evening",
+                                      completion: parseFloat((insights.peakStudyHours.completionRateByWindow.evening * 100).toFixed(0)),
+                                      difficulty: insights.peakStudyHours.avgDifficultyByWindow.evening || 0,
+                                    },
+                                  ]}
+                                  margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
+                                >
+                                  <XAxis 
+                                    dataKey="window" 
+                                    tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
+                                  />
+                                  <YAxis 
+                                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                                  />
+                                  <Tooltip
+                                    contentStyle={{
+                                      backgroundColor: 'hsl(var(--card))',
+                                      border: '1px solid hsl(var(--border))',
+                                      borderRadius: '8px',
+                                      fontSize: 12
+                                    }}
+                                  />
+                                  <Bar 
+                                    dataKey="completion" 
+                                    name="Completion Rate %" 
+                                    fill="#22c55e" 
+                                    radius={[8, 8, 0, 0]} 
+                                  />
+                                  <Bar 
+                                    dataKey="difficulty" 
+                                    name="Avg Difficulty (1-10)" 
+                                    fill="hsl(var(--destructive))" 
+                                    radius={[8, 8, 0, 0]} 
+                                  />
+                                </BarChart>
+                              </ResponsiveContainer>
+                            </div>
+                          </ChartCard>
 
                           <Card className="bg-blue-50 dark:bg-blue-950/20 border-blue-200 dark:border-blue-900">
                             <CardContent className="p-4">
@@ -695,8 +717,6 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                     </TabsContent>
                   </Tabs>
                 </div>
-              )}
-            </>
           )}
         </CardContent>
       </Card>

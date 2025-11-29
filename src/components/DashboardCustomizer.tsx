@@ -8,6 +8,7 @@ import { toast } from "sonner";
 import { DndContext, closestCenter, KeyboardSensor, PointerSensor, useSensor, useSensors, DragEndEvent } from "@dnd-kit/core";
 import { arrayMove, SortableContext, sortableKeyboardCoordinates, useSortable, verticalListSortingStrategy } from "@dnd-kit/sortable";
 import { CSS } from "@dnd-kit/utilities";
+import { supabase } from "@/integrations/supabase/client";
 
 interface DashboardSection {
   id: string;
@@ -78,30 +79,72 @@ export const DashboardCustomizer = ({ onSettingsChange }: DashboardCustomizerPro
   );
 
   useEffect(() => {
-    // Load saved settings from localStorage
-    const saved = localStorage.getItem("dashboardSections");
-    if (saved) {
-      try {
-        const savedSections = JSON.parse(saved);
-        setSections(savedSections);
-        onSettingsChange(savedSections);
-      } catch {
+    const fetchPreferences = async () => {
+      // Try to load from database first
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        const { data: profile } = await supabase
+          .from("profiles")
+          .select("dashboard_preferences")
+          .eq("id", user.id)
+          .single();
+        
+        if (profile?.dashboard_preferences) {
+          try {
+            const prefs = JSON.parse(JSON.stringify(profile.dashboard_preferences)) as DashboardSection[];
+            if (Array.isArray(prefs) && prefs.length > 0 && prefs[0].id) {
+              setSections(prefs);
+              onSettingsChange(prefs);
+              return;
+            }
+          } catch (e) {
+            console.error("Error parsing dashboard preferences", e);
+          }
+        }
+      }
+      
+      // Fallback to localStorage
+      const saved = localStorage.getItem("dashboardSections");
+      if (saved) {
+        try {
+          const savedSections = JSON.parse(saved);
+          setSections(savedSections);
+          onSettingsChange(savedSections);
+        } catch {
+          setSections(DEFAULT_SECTIONS);
+          onSettingsChange(DEFAULT_SECTIONS);
+        }
+      } else {
         setSections(DEFAULT_SECTIONS);
         onSettingsChange(DEFAULT_SECTIONS);
       }
-    } else {
-      setSections(DEFAULT_SECTIONS);
-      onSettingsChange(DEFAULT_SECTIONS);
-    }
+    };
+    
+    fetchPreferences();
   }, []);
+
+  const savePreferences = async (updated: DashboardSection[]) => {
+    // Save to localStorage for offline support
+    localStorage.setItem("dashboardSections", JSON.stringify(updated));
+    
+    // Save to database
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+      await supabase
+        .from("profiles")
+        .update({ dashboard_preferences: updated as any })
+        .eq("id", user.id);
+    }
+    
+    onSettingsChange(updated);
+  };
 
   const handleToggle = (id: string) => {
     const updated = sections.map(section =>
       section.id === id ? { ...section, enabled: !section.enabled } : section
     );
     setSections(updated);
-    localStorage.setItem("dashboardSections", JSON.stringify(updated));
-    onSettingsChange(updated);
+    savePreferences(updated);
     toast.success("Dashboard updated");
   };
 
@@ -117,8 +160,7 @@ export const DashboardCustomizer = ({ onSettingsChange }: DashboardCustomizerPro
           order: index,
         }));
         
-        localStorage.setItem("dashboardSections", JSON.stringify(reordered));
-        onSettingsChange(reordered);
+        savePreferences(reordered);
         toast.success("Dashboard reordered");
         return reordered;
       });
