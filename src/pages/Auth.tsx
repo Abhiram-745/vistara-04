@@ -24,13 +24,11 @@ const Auth = () => {
   const [verificationEmail, setVerificationEmail] = useState("");
 
   useEffect(() => {
-    if (user && emailVerified) {
+    if (user) {
+      // Allow access to dashboard after account creation, email verification is optional
       navigate("/dashboard");
-    } else if (user && !emailVerified) {
-      setShowVerification(true);
-      setVerificationEmail(user.email || email);
     }
-  }, [user, emailVerified, navigate, email]);
+  }, [user, navigate]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();

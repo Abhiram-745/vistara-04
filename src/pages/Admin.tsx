@@ -719,7 +719,7 @@ const Admin = () => {
           {/* User Details Dialog */}
           <Dialog open={!!selectedUser} onOpenChange={() => setSelectedUser(null)}>
             <DialogContent className="max-w-4xl max-h-[90vh] overflow-hidden">
-              <DialogHeader>
+              <DialogHeader className="flex flex-row items-center justify-between">
                 <DialogTitle className="flex items-center gap-3">
                   <Avatar className="h-10 w-10">
                     <AvatarImage src={selectedUser?.avatar_url || undefined} />
@@ -732,6 +732,27 @@ const Admin = () => {
                     <p className="text-sm font-normal text-muted-foreground">{selectedUser?.email}</p>
                   </div>
                 </DialogTitle>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => selectedUser && handleViewUser(selectedUser)}
+                  disabled={statsLoading}
+                  className="gap-2"
+                >
+                  {statsLoading ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Refreshing...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      Refresh Stats
+                    </>
+                  )}
+                </Button>
               </DialogHeader>
 
               {statsLoading ? (
