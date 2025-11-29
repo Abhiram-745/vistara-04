@@ -1,15 +1,8 @@
 import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { supabase } from '@/integrations/supabase/client';
+import { User, Session } from '@supabase/supabase-js';
 
 const API_BASE = '';
-
-interface User {
-  id: string;
-  email: string;
-}
-
-interface Session {
-  access_token: string;
-}
 
 interface AuthContextType {
   user: User | null;
@@ -48,35 +41,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refreshUser = useCallback(async () => {
     try {
-      const token = localStorage.getItem('auth_token');
-      if (!token) {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (!session) {
         setSession(null);
         setUser(null);
         setLoading(false);
         return;
       }
 
-      const response = await fetch(`${API_BASE}/api/auth/user`, {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        localStorage.removeItem('auth_token');
-        setSession(null);
-        setUser(null);
-        setLoading(false);
-        return;
-      }
-
-      const userData = await response.json();
-      setUser(userData);
-      setSession({ access_token: token });
-      await checkEmailVerified(userData.email);
+      setUser(session.user);
+      setSession(session);
+      await checkEmailVerified(session.user.email || '');
       setError(null);
     } catch (err) {
-      localStorage.removeItem('auth_token');
       setSession(null);
       setUser(null);
     } finally {
@@ -86,7 +64,21 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshUser();
-  }, [refreshUser]);
+
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      if (session) {
+        setUser(session.user);
+        setSession(session);
+        await checkEmailVerified(session.user.email || '');
+      } else {
+        setUser(null);
+        setSession(null);
+        setEmailVerified(false);
+      }
+    });
+
+    return () => subscription.unsubscribe();
+  }, [refreshUser, checkEmailVerified]);
 
   const sendVerificationCode = async (email: string) => {
     const response = await fetch(`${API_BASE}/api/send-verification-code`, {
@@ -124,22 +116,27 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/signup`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password, fullName }),
+      const { data, error } = await supabase.auth.signUp({
+        email,
+        password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/dashboard`
+        }
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Signup failed');
+      if (error) throw error;
+      
+      if (data.user) {
+        // Create profile with full name
+        await supabase.from('profiles').upsert({
+          id: data.user.id,
+          full_name: fullName || null
+        });
+
+        setUser(data.user);
+        setSession(data.session);
+        await sendVerificationCode(email);
       }
-      
-      localStorage.setItem('auth_token', data.token);
-      setUser(data.user);
-      setSession({ access_token: data.token });
-      
-      await sendVerificationCode(email);
     } catch (err: any) {
       setError(err.message);
       throw err;
@@ -152,19 +149,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setLoading(true);
     setError(null);
     try {
-      const response = await fetch(`${API_BASE}/api/auth/login`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email, password }),
+      const { data, error } = await supabase.auth.signInWithPassword({
+        email,
+        password
       });
 
-      const data = await response.json();
-      if (!response.ok) {
-        throw new Error(data.error || 'Login failed');
-      }
+      if (error) throw error;
 
-      localStorage.setItem('auth_token', data.token);
-      setSession({ access_token: data.token });
+      setSession(data.session);
       setUser(data.user);
       await checkEmailVerified(email);
     } catch (err: any) {
@@ -178,7 +170,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setLoading(true);
     try {
-      localStorage.removeItem('auth_token');
+      await supabase.auth.signOut();
       setSession(null);
       setUser(null);
       setEmailVerified(false);
