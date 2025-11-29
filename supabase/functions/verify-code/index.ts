@@ -125,6 +125,43 @@ const handler = async (req: Request): Promise<Response> => {
       .update({ verified: true })
       .eq("id", verification.id);
 
+    // Update Supabase Auth user to confirm email
+    const { data: userData, error: userError } = await supabase.auth.admin.listUsers();
+    
+    if (userError) {
+      console.error("[verify-code] Error listing users:", userError);
+      return new Response(
+        JSON.stringify({ error: "Failed to confirm email" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const user = userData.users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+    
+    if (!user) {
+      console.error("[verify-code] User not found for email:", email);
+      return new Response(
+        JSON.stringify({ error: "User not found" }),
+        { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    // Confirm the user's email
+    const { error: confirmError } = await supabase.auth.admin.updateUserById(
+      user.id,
+      { email_confirm: true }
+    );
+
+    if (confirmError) {
+      console.error("[verify-code] Error confirming email:", confirmError);
+      return new Response(
+        JSON.stringify({ error: "Failed to confirm email" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    console.log("[verify-code] Email confirmed in Supabase Auth for:", email);
+
     return new Response(
       JSON.stringify({ valid: true, message: "Email verified successfully" }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } }

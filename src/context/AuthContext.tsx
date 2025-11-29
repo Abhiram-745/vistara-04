@@ -72,6 +72,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     if (data?.error) {
       throw new Error(data.error);
     }
+    
+    // If valid, refresh the session to get updated email_confirmed_at
+    if (data?.valid === true) {
+      await refreshUser();
+    }
+    
     return data?.valid === true;
   };
 
