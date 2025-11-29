@@ -150,8 +150,8 @@ app.post('/api/send-verification-code', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Email service not configured' });
     }
 
-    // Use onboarding@resend.dev for testing, or fall back to verified domain
-    const fromAddress = process.env.RESEND_FROM_EMAIL || 'Vistari <onboarding@resend.dev>';
+    // Use vistara-ai.app domain
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'Vistari <noreply@vistara-ai.app>';
     
     console.log('[send-verification-code] Sending email from:', fromAddress);
 
