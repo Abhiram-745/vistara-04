@@ -94,9 +94,22 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
+    // Determine valid from address
+    const rawFrom = Deno.env.get("RESEND_FROM_EMAIL");
+    let fromAddress = "Vistari <onboarding@resend.dev>";
+
+    if (rawFrom) {
+      const trimmed = rawFrom.trim();
+      if (trimmed.includes("@") && trimmed.includes(".")) {
+        fromAddress = trimmed;
+      } else {
+        console.warn("[send-verification-code] Invalid RESEND_FROM_EMAIL format, falling back to default");
+      }
+    }
+
     // Send email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: Deno.env.get("RESEND_FROM_EMAIL") || "Vistari <onboarding@resend.dev>",
+      from: fromAddress,
       to: [email],
       subject: "Your Vistari Verification Code",
       html: `
