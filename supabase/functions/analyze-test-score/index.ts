@@ -7,6 +7,59 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
 };
 
+// Retry configuration
+const MAX_RETRIES = 3;
+const INITIAL_DELAY_MS = 1000;
+
+async function fetchWithRetry(url: string, options: RequestInit, retries = MAX_RETRIES): Promise<Response> {
+  let lastError: Error | null = null;
+  
+  for (let attempt = 0; attempt <= retries; attempt++) {
+    try {
+      if (attempt > 0) {
+        const delay = INITIAL_DELAY_MS * Math.pow(2, attempt - 1);
+        console.log(`Retry attempt ${attempt}/${retries} - waiting ${delay}ms...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
+      
+      const response = await fetch(url, options);
+      
+      if (!response.ok) {
+        if ((response.status === 503 || response.status === 429) && attempt < retries) {
+          console.log(`Received ${response.status}, will retry...`);
+          continue;
+        }
+        
+        if (response.status === 503) {
+          throw new Error("We're experiencing heavy traffic right now. Please try again in a few moments.");
+        } else if (response.status === 429) {
+          throw new Error("Too many requests. Please wait a moment and try again.");
+        } else if (response.status === 402) {
+          throw new Error("AI service credits exhausted. Please contact support.");
+        }
+        
+        throw new Error(`AI request failed with status ${response.status}`);
+      }
+      
+      return response;
+    } catch (err) {
+      lastError = err instanceof Error ? err : new Error('Unknown error');
+      
+      if (lastError.message.includes("heavy traffic") || 
+          lastError.message.includes("Too many requests") ||
+          lastError.message.includes("credits exhausted")) {
+        throw lastError;
+      }
+      
+      if (attempt >= retries) {
+        throw lastError;
+      }
+    }
+  }
+  
+  throw lastError || new Error("Request failed after all retries");
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -71,7 +124,7 @@ Be constructive, specific, and focused on GCSE exam success. Return ONLY valid J
       throw new Error("OPEN_ROUTER_API_KEY not configured");
     }
 
-    const response = await fetch(
+    const response = await fetchWithRetry(
       'https://openrouter.ai/api/v1/chat/completions',
       {
         method: "POST",
