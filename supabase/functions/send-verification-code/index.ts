@@ -94,18 +94,10 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Determine valid from address
-    const rawFrom = Deno.env.get("RESEND_FROM_EMAIL");
-    let fromAddress = "Vistari <onboarding@resend.dev>";
-
-    if (rawFrom) {
-      const trimmed = rawFrom.trim();
-      if (trimmed.includes("@") && trimmed.includes(".")) {
-        fromAddress = trimmed;
-      } else {
-        console.warn("[send-verification-code] Invalid RESEND_FROM_EMAIL format, falling back to default");
-      }
-    }
+    // Use verified domain - fallback to verified domain if secret not set
+    const fromAddress = Deno.env.get("RESEND_FROM_EMAIL") || "Vistari <noreply@send.vistara-ai.app>";
+    
+    console.log("[send-verification-code] Using from address:", fromAddress.replace(/<.*>/, "<***>"));
 
     // Send email via Resend
     const { error: emailError } = await resend.emails.send({
