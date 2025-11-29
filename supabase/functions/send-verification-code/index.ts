@@ -94,13 +94,13 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    // Use verified domain - fallback to verified domain if secret not set
-    const fromAddress = Deno.env.get("RESEND_FROM_EMAIL") || "Vistari <noreply@send.vistara-ai.app>";
+    // Use verified domain with fallback to Resend's testing domain
+    const fromAddress = Deno.env.get("RESEND_FROM_EMAIL") || "Vistari <onboarding@resend.dev>";
     
     console.log("[send-verification-code] Using from address:", fromAddress.replace(/<.*>/, "<***>"));
 
     // Send email via Resend
-    const { error: emailError } = await resend.emails.send({
+    const { data, error: emailError } = await resend.emails.send({
       from: fromAddress,
       to: [email],
       subject: "Your Vistari Verification Code",
@@ -141,6 +141,8 @@ const handler = async (req: Request): Promise<Response> => {
 
     if (emailError) {
       console.error("[send-verification-code] Email send error:", emailError);
+      console.error("[send-verification-code] Response data:", data);
+      
       // Delete the code if email failed
       await supabase
         .from("email_verifications")
@@ -153,7 +155,7 @@ const handler = async (req: Request): Promise<Response> => {
       const errorMessage = errorObj.message || "";
       if (errorObj.statusCode === 403 || errorMessage.includes("testing emails") || errorMessage.includes("verify a domain")) {
         return new Response(
-          JSON.stringify({ error: "Email verification is currently in testing mode. Please contact support or use an approved email address." }),
+          JSON.stringify({ error: "Email verification temporarily unavailable. Please try again." }),
           { status: 403, headers: { "Content-Type": "application/json", ...corsHeaders } }
         );
       }
@@ -164,7 +166,7 @@ const handler = async (req: Request): Promise<Response> => {
       );
     }
 
-    console.log("[send-verification-code] Email sent successfully to:", email);
+    console.log("[send-verification-code] Email sent successfully. Message ID:", data?.id);
 
     return new Response(
       JSON.stringify({ success: true, message: "Verification code sent" }),
