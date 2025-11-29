@@ -150,8 +150,13 @@ app.post('/api/send-verification-code', async (req: Request, res: Response) => {
       return res.status(500).json({ error: 'Email service not configured' });
     }
 
-    const { error: emailError } = await resend.emails.send({
-      from: 'Vistari <noreply@vistara-ai.app>',
+    // Use onboarding@resend.dev for testing, or fall back to verified domain
+    const fromAddress = process.env.RESEND_FROM_EMAIL || 'Vistari <onboarding@resend.dev>';
+    
+    console.log('[send-verification-code] Sending email from:', fromAddress);
+
+    const { data, error: emailError } = await resend.emails.send({
+      from: fromAddress,
       to: email,
       subject: 'Your Vistari Verification Code',
       html: `
@@ -169,9 +174,19 @@ app.post('/api/send-verification-code', async (req: Request, res: Response) => {
     });
 
     if (emailError) {
-      console.error('Resend error:', emailError);
-      return res.status(500).json({ error: 'Failed to send verification email' });
+      console.error('[send-verification-code] Resend error:', emailError);
+      console.error('[send-verification-code] Response data:', data);
+      
+      // Log more details for debugging
+      const errorObj = emailError as any;
+      if (errorObj.statusCode === 403) {
+        return res.status(403).json({ error: 'Email service temporarily unavailable. Please try again.' });
+      }
+      
+      return res.status(500).json({ error: 'Failed to send verification email. Please try again.' });
     }
+    
+    console.log('[send-verification-code] Email sent successfully. Message ID:', data?.id);
 
     res.json({ success: true, message: 'Verification code sent' });
   } catch (error: any) {
