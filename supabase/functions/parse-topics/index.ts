@@ -97,7 +97,7 @@ Do NOT include any explanation or commentary - ONLY the JSON.`;
           "Authorization": BYTEZ_API_KEY
         },
         body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+          model: "google/gemini-2.5-pro",
           messages: [
             { role: "user", content: messageContent }
           ],

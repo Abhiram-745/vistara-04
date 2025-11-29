@@ -81,7 +81,7 @@ Be constructive, specific, and focused on GCSE exam success. Return ONLY valid J
           "HTTP-Referer": Deno.env.get('SUPABASE_URL') || "https://vistari.app"
         },
         body: JSON.stringify({
-          model: "mistralai/mistral-7b-instruct:free",
+          model: "x-ai/grok-4.1-fast:free",
           messages: [
             { role: "user", content: `${systemPrompt}\n\n${prompt}` }
           ],

@@ -417,7 +417,7 @@ Return ONLY valid JSON:
             "HTTP-Referer": Deno.env.get('SUPABASE_URL') || "https://vistari.app"
           },
           body: JSON.stringify({
-            model: "mistralai/mistral-7b-instruct:free",
+            model: "x-ai/grok-4.1-fast:free",
             messages: [
               { role: "user", content: `You are an expert study scheduling assistant. Create realistic, balanced schedules that respect student preferences and time constraints. Always return valid JSON.\n\n${prompt}` }
             ],
