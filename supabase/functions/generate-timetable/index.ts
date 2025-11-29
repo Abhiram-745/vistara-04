@@ -9,6 +9,35 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type",
 };
 
+// JSON repair helper function to fix truncated or malformed JSON
+function attemptJsonRepair(jsonString: string): string {
+  let repaired = jsonString.trim();
+  
+  // Count opening and closing braces/brackets
+  const openBraces = (repaired.match(/{/g) || []).length;
+  const closeBraces = (repaired.match(/}/g) || []).length;
+  const openBrackets = (repaired.match(/\[/g) || []).length;
+  const closeBrackets = (repaired.match(/]/g) || []).length;
+  
+  // Remove trailing incomplete data after last complete object
+  // Look for patterns like incomplete strings or values
+  const lastCompletePattern = /,\s*"[^"]*$|,\s*$/;
+  repaired = repaired.replace(lastCompletePattern, '');
+  
+  // Add missing closing brackets/braces
+  for (let i = 0; i < openBrackets - closeBrackets; i++) {
+    repaired += ']';
+  }
+  for (let i = 0; i < openBraces - closeBraces; i++) {
+    repaired += '}';
+  }
+  
+  // Remove trailing commas before closing brackets/braces
+  repaired = repaired.replace(/,(\s*[}\]])/g, '$1');
+  
+  return repaired;
+}
+
 // Input validation schema - accept both UUID and string subject_ids for backward compatibility
 const inputSchema = z.object({
   subjects: z.array(z.object({
@@ -1273,7 +1302,18 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
             body: JSON.stringify({
               model: "google/gemini-2.5-pro",
               messages: [
-                { role: "user", content: `INSTRUCTIONS: You are an expert educational planner specializing in GCSE revision strategies. Return ONLY valid JSON with no markdown formatting, no code fences, no additional text. Your response must start with { and end with }. CRITICAL: Ensure the JSON is complete with all closing braces and brackets.\n\nTASK:\n${prompt}` }
+                { role: "user", content: `INSTRUCTIONS: You are an expert educational planner specializing in GCSE revision strategies.
+
+CRITICAL JSON REQUIREMENTS:
+1. Return ONLY valid JSON - no markdown, no code fences
+2. Start with { and end with }
+3. Keep topic names SHORT (max 50 characters)
+4. Ensure ALL braces and brackets are properly closed
+5. NO trailing commas
+6. Complete ALL JSON structures before reaching token limit
+
+TASK:
+${prompt}` }
               ],
               max_tokens: 65536,
             }),
@@ -1339,26 +1379,48 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
 
     // Extract JSON from markdown code blocks if present
     let scheduleData;
+    let jsonString = aiResponse.trim();
+
+    // Extract JSON from markdown fences if AI ignored instructions
+    const fenceMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/i);
+    if (fenceMatch) {
+      jsonString = fenceMatch[1].trim();
+      console.log("Extracted JSON from markdown fence");
+    }
+
+    if (!jsonString || jsonString.length < 10) {
+      throw new Error("AI response is too short to be valid JSON");
+    }
+
+    // First attempt: parse as-is
     try {
-      let jsonString = aiResponse.trim();
-      
-      // Extract JSON from markdown fences if AI ignored instructions
-      const fenceMatch = jsonString.match(/```(?:json)?\s*([\s\S]*?)```/i);
-      if (fenceMatch) {
-        jsonString = fenceMatch[1].trim();
-        console.log("Extracted JSON from markdown fence");
-      }
-
-      if (!jsonString || jsonString.length < 10) {
-        throw new Error("AI response is too short to be valid JSON");
-      }
-
       scheduleData = JSON.parse(jsonString);
+      console.log("✓ JSON parsed successfully on first attempt");
+    } catch (firstParseError) {
+      console.log("First parse failed, attempting JSON repair...");
+      console.log("Parse error:", firstParseError instanceof Error ? firstParseError.message : 'Unknown error');
       
-      // Validate that schedule exists in the response
-      if (!scheduleData.schedule || typeof scheduleData.schedule !== 'object') {
-        throw new Error("AI response missing valid schedule object");
+      // Second attempt: try to repair the JSON
+      const repairedJson = attemptJsonRepair(jsonString);
+      console.log("Repaired JSON length:", repairedJson.length, "Original:", jsonString.length);
+      
+      try {
+        scheduleData = JSON.parse(repairedJson);
+        console.log("✓ JSON repair successful!");
+      } catch (repairError) {
+        console.error("JSON repair also failed:", repairError);
+        console.error("Original JSON (first 1000 chars):", jsonString.substring(0, 1000));
+        console.error("Repaired JSON (last 500 chars):", repairedJson.substring(repairedJson.length - 500));
+        throw new Error("The AI generated an incomplete response. This can happen with complex schedules. Please try again - if the problem persists, try reducing the date range or number of subjects.");
       }
+    }
+
+    // Validate that schedule exists in the response
+    if (!scheduleData.schedule || typeof scheduleData.schedule !== 'object') {
+      throw new Error("AI response missing valid schedule object");
+    }
+
+    try {
       
       // Enforce rule: no homework sessions on their due date
       if (Array.isArray(homeworks) && homeworks.length > 0 && scheduleData.schedule && typeof scheduleData.schedule === 'object') {
@@ -1555,11 +1617,10 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
       } else {
         console.log('✓ Time window validation passed - all sessions within allowed windows');
       }
-    } catch (parseError) {
-      console.error("Failed to parse AI response:", aiResponse.substring(0, 500));
-      console.error("Parse error:", parseError);
-      const errorMsg = parseError instanceof Error ? parseError.message : 'Could not parse JSON';
-      throw new Error(`Invalid AI response format: ${errorMsg}`);
+    } catch (validationError) {
+      // This catch is for the validation logic, not JSON parsing
+      console.error("Schedule validation error:", validationError);
+      throw validationError;
     }
 
     return new Response(JSON.stringify(scheduleData), {
