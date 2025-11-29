@@ -36,9 +36,8 @@ const Auth = () => {
 
     try {
       await signup(email, password, fullName);
-      toast.success("Verification code sent to your email!");
-      setVerificationEmail(email);
-      setShowVerification(true);
+      toast.success("Account created! Redirecting to dashboard...");
+      // Navigation is handled by useEffect when user is set
     } catch (error: any) {
       toast.error(error.message || "Failed to create account");
     } finally {

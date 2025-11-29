@@ -135,7 +135,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
         setUser(data.user);
         setSession(data.session);
-        await sendVerificationCode(email);
+        
+        // Send verification code in background (non-blocking)
+        // Email verification is optional, so don't block signup if it fails
+        sendVerificationCode(email).catch((err) => {
+          console.warn('Failed to send verification email:', err);
+          // Silently fail - user can still access the app
+        });
       }
     } catch (err: any) {
       setError(err.message);
