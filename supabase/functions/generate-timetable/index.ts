@@ -1242,64 +1242,86 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout for large timetables
 
-    // Using Lovable AI with Gemini 2.5 Pro for timetable generation
-    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
+    // Using Bytez API with Gemini 2.5 Pro for timetable generation
+    const BYTEZ_API_KEY = Deno.env.get('BYTEZ_API_KEY');
     
-    if (!LOVABLE_API_KEY) {
-      console.error("LOVABLE_API_KEY not configured");
+    if (!BYTEZ_API_KEY) {
+      console.error("BYTEZ_API_KEY not configured");
       throw new Error("AI service not configured. Please contact support.");
     }
 
     let openaiResult;
-    try {
-      console.log("Calling Lovable AI for timetable generation...");
-      const response = await fetch(
-        'https://ai.gateway.lovable.dev/v1/chat/completions',
-        {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-            "Authorization": `Bearer ${LOVABLE_API_KEY}`
-          },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-pro",
-            messages: [
-              { role: "user", content: `INSTRUCTIONS: You are an expert educational planner specializing in GCSE revision strategies. Return ONLY valid JSON with no markdown formatting, no code fences, no additional text. Your response must start with { and end with }. CRITICAL: Ensure the JSON is complete with all closing braces and brackets.\n\nTASK:\n${prompt}` }
-            ],
-            max_tokens: 65536,
-          }),
-          signal: controller.signal,
+    let retryCount = 0;
+    const maxRetries = 3;
+    
+    while (retryCount <= maxRetries) {
+      try {
+        if (retryCount > 0) {
+          console.log(`Retry attempt ${retryCount}/${maxRetries} - waiting ${retryCount * 2} seconds...`);
+          await new Promise(resolve => setTimeout(resolve, retryCount * 2000)); // Exponential backoff
         }
-      );
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("Lovable AI error:", response.status, errorText);
         
-        // User-friendly error messages
-        if (response.status === 503) {
-          throw new Error("We're experiencing heavy traffic right now. Please try again in a few moments.");
-        } else if (response.status === 429) {
-          throw new Error("Too many requests. Please wait a moment and try again.");
-        } else if (response.status >= 500) {
-          throw new Error("Our AI service is temporarily unavailable. Please try again shortly.");
-        } else {
-          throw new Error(`AI request failed: ${response.status}`);
+        console.log(`Calling Bytez API for timetable generation... (attempt ${retryCount + 1}/${maxRetries + 1})`);
+        const response = await fetch(
+          'https://api.bytez.com/models/v2/openai/v1/chat/completions',
+          {
+            method: "POST",
+            headers: {
+              "Content-Type": "application/json",
+              "Authorization": BYTEZ_API_KEY
+            },
+            body: JSON.stringify({
+              model: "google/gemini-2.5-pro",
+              messages: [
+                { role: "user", content: `INSTRUCTIONS: You are an expert educational planner specializing in GCSE revision strategies. Return ONLY valid JSON with no markdown formatting, no code fences, no additional text. Your response must start with { and end with }. CRITICAL: Ensure the JSON is complete with all closing braces and brackets.\n\nTASK:\n${prompt}` }
+              ],
+              max_tokens: 65536,
+            }),
+            signal: controller.signal,
+          }
+        );
+
+        if (!response.ok) {
+          const errorText = await response.text();
+          console.error("Bytez API error:", response.status, errorText);
+          
+          // Retry on 503 or 429 errors
+          if ((response.status === 503 || response.status === 429) && retryCount < maxRetries) {
+            retryCount++;
+            continue;
+          }
+          
+          // User-friendly error messages
+          if (response.status === 503) {
+            throw new Error("We're experiencing heavy traffic right now. Please try again in a few moments.");
+          } else if (response.status === 429) {
+            throw new Error("Too many requests. Please wait a moment and try again.");
+          } else {
+            throw new Error(`AI request failed: ${response.status}`);
+          }
         }
-      }
 
-      openaiResult = await response.json();
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err instanceof Error && err.name === 'AbortError') {
-        throw new Error("AI request timed out. Please try with a shorter date range or fewer subjects.");
+        openaiResult = await response.json();
+        break; // Success, exit retry loop
+      } catch (err) {
+        if (err instanceof Error && err.name === 'AbortError') {
+          clearTimeout(timeoutId);
+          throw new Error("AI request timed out. Please try with a shorter date range or fewer subjects.");
+        }
+        
+        // If it's the last retry, throw the error
+        if (retryCount >= maxRetries) {
+          throw err;
+        }
+        
+        // Otherwise, retry
+        retryCount++;
       }
-      throw err;
-    } finally {
-      clearTimeout(timeoutId);
     }
+    
+    clearTimeout(timeoutId); // Clear timeout after successful completion
 
-    console.log("Lovable AI Gemini raw result:", JSON.stringify(openaiResult, null, 2));
+    console.log("Bytez Gemini raw result:", JSON.stringify(openaiResult, null, 2));
 
     // Extract content from OpenAI response
     let aiResponse: string | undefined;

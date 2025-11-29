@@ -140,6 +140,8 @@ const GenerateStep = ({
 
     setLoading(true);
     setGenerationStage("saving");
+    
+    let schedulingTimeout: NodeJS.Timeout | null = null;
 
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -274,6 +276,13 @@ const GenerateStep = ({
       setGenerationStage("analyzing");
       await new Promise(resolve => setTimeout(resolve, 500)); // Brief pause for UX
 
+      // Add a longer delay to show "taking longer than usual" message
+      schedulingTimeout = setTimeout(() => {
+        toast.info("This is taking longer than usual. We're still working on it...", {
+          duration: 4000,
+        });
+      }, 10000); // Show message after 10 seconds
+
       // Update stage to scheduling
       setGenerationStage("scheduling");
 
@@ -306,6 +315,8 @@ const GenerateStep = ({
         }
       );
 
+      if (schedulingTimeout) clearTimeout(schedulingTimeout); // Clear the timeout if generation completes
+      
       if (generateError) throw generateError;
 
       // Update stage to optimizing
@@ -377,6 +388,7 @@ const GenerateStep = ({
       
       toast.error(errorMessage);
     } finally {
+      if (schedulingTimeout) clearTimeout(schedulingTimeout);
       setLoading(false);
       setGenerationStage("");
     }
