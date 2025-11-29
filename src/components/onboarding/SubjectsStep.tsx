@@ -6,7 +6,6 @@ import { X, Plus, Calendar, Clock, BookOpen } from "lucide-react";
 import { Subject } from "../OnboardingWizard";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
-import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface SubjectsStepProps {
   subjects: Subject[];
@@ -162,8 +161,7 @@ const SubjectsStep = ({ subjects, setSubjects }: SubjectsStepProps) => {
       {subjects.length > 0 && (
         <div className="space-y-2">
           <Label className="text-sm">Your Subjects ({subjects.length})</Label>
-          <ScrollArea className="h-[150px] rounded-md border p-2">
-            <div className="space-y-2">
+          <div className="rounded-md border p-2 space-y-2">
               {subjects.map((subject, index) => {
                 const info = getModeInfo(subject.mode);
                 const Icon = info.icon;
@@ -191,10 +189,9 @@ const SubjectsStep = ({ subjects, setSubjects }: SubjectsStepProps) => {
                       <X className="h-4 w-4" />
                     </Button>
                   </div>
-                );
-              })}
-            </div>
-          </ScrollArea>
+              );
+            })}
+          </div>
         </div>
       )}
     </div>

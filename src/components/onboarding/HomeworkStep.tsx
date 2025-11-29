@@ -5,7 +5,6 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Card, CardContent } from "@/components/ui/card";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Plus, Trash2, Image as ImageIcon, X } from "lucide-react";
 import { Subject } from "../OnboardingWizard";
 import { useToast } from "@/hooks/use-toast";
@@ -290,8 +289,7 @@ const HomeworkStep = ({ subjects, homeworks, setHomeworks }: HomeworkStepProps) 
       {homeworks.length > 0 && (
         <div className="space-y-2">
           <Label>Added Homework ({homeworks.length})</Label>
-          <ScrollArea className="max-h-[200px] sm:max-h-[250px]">
-            <div className="space-y-2 pr-4">
+          <div className="space-y-2">
               {homeworks.map((hw) => (
                 <Card key={hw.id}>
                   <CardContent className="p-3 sm:p-4">
@@ -331,7 +329,6 @@ const HomeworkStep = ({ subjects, homeworks, setHomeworks }: HomeworkStepProps) 
                 </Card>
               ))}
             </div>
-          </ScrollArea>
         </div>
       )}
 
