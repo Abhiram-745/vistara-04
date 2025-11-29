@@ -310,7 +310,7 @@ const TopicsStep = ({ subjects, topics, setTopics }: TopicsStepProps) => {
   }, {} as Record<string, Topic[]>);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-6 flex flex-col h-full">
       {/* Subject Navigation Header */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
@@ -467,7 +467,7 @@ const TopicsStep = ({ subjects, topics, setTopics }: TopicsStepProps) => {
     </Tabs>
 
       {topics.length > 0 && (
-        <div className="space-y-4 pt-6 border-t">
+        <div className="space-y-4 pt-6 border-t flex flex-col min-h-0">
           <div className="flex items-center justify-between">
             <div className="space-y-1">
               <Label className="text-base font-semibold">All Topics</Label>
@@ -497,7 +497,7 @@ const TopicsStep = ({ subjects, topics, setTopics }: TopicsStepProps) => {
 
           {!showPriorityOrder ? (
             /* Grouped by Subject View */
-            <div className="max-h-96 overflow-y-auto border rounded-lg">
+            <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg max-h-[40vh]">
               {filteredTopics.length === 0 ? (
                 <p className="text-sm text-muted-foreground text-center py-4">
                   No topics match your search.
@@ -553,7 +553,7 @@ const TopicsStep = ({ subjects, topics, setTopics }: TopicsStepProps) => {
                   💡 Drag topics to set priority order. Higher priority topics will get more study time in your timetable.
                 </p>
               </div>
-              <div className="max-h-96 overflow-y-auto border rounded-lg p-3 bg-muted/20">
+              <div className="flex-1 min-h-0 overflow-y-auto border rounded-lg p-3 bg-muted/20 max-h-[40vh]">
                 <DndContext
                   sensors={sensors}
                   collisionDetection={closestCenter}
