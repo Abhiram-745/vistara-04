@@ -8,7 +8,7 @@ import jwt from "jsonwebtoken";
 import { z } from "zod";
 import { Resend } from "resend";
 
-const resend = new Resend(process.env.RESEND_API_KEY);
+const resend = process.env.RESEND_API_KEY ? new Resend(process.env.RESEND_API_KEY) : null;
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -144,6 +144,11 @@ app.post('/api/send-verification-code', async (req: Request, res: Response) => {
       verified: false,
       attempts: 0,
     });
+
+    if (!resend) {
+      console.error('Resend not configured - RESEND_API_KEY missing');
+      return res.status(500).json({ error: 'Email service not configured' });
+    }
 
     const { error: emailError } = await resend.emails.send({
       from: 'Vistari <noreply@vistara-ai.app>',
