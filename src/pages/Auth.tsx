@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/context/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -7,17 +7,30 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { toast } from "sonner";
-import { Loader2, ArrowLeft } from "lucide-react";
+import { Loader2, ArrowLeft, Mail } from "lucide-react";
 import vistariLogo from "@/assets/vistari-logo.png";
 import PageTransition from "@/components/PageTransition";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 const Auth = () => {
   const navigate = useNavigate();
-  const { signup, login } = useAuth();
+  const { signup, login, sendVerificationCode, verifyEmailCode, user, emailVerified } = useAuth();
   const [loading, setLoading] = useState(false);
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [fullName, setFullName] = useState("");
+  const [showVerification, setShowVerification] = useState(false);
+  const [verificationCode, setVerificationCode] = useState("");
+  const [verificationEmail, setVerificationEmail] = useState("");
+
+  useEffect(() => {
+    if (user && emailVerified) {
+      navigate("/dashboard");
+    } else if (user && !emailVerified) {
+      setShowVerification(true);
+      setVerificationEmail(user.email || email);
+    }
+  }, [user, emailVerified, navigate, email]);
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -25,8 +38,9 @@ const Auth = () => {
 
     try {
       await signup(email, password, fullName);
-      toast.success("Account created successfully!");
-      navigate("/dashboard");
+      toast.success("Verification code sent to your email!");
+      setVerificationEmail(email);
+      setShowVerification(true);
     } catch (error: any) {
       toast.error(error.message || "Failed to create account");
     } finally {
@@ -41,13 +55,135 @@ const Auth = () => {
     try {
       await login(email, password);
       toast.success("Welcome back!");
-      navigate("/dashboard");
+      // Navigation is handled by useEffect based on emailVerified state
     } catch (error: any) {
       toast.error(error.message || "Failed to sign in");
     } finally {
       setLoading(false);
     }
   };
+
+  const handleVerifyCode = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (verificationCode.length !== 6) {
+      toast.error("Please enter a 6-digit code");
+      return;
+    }
+
+    setLoading(true);
+    try {
+      const isValid = await verifyEmailCode(verificationEmail, verificationCode);
+      if (isValid) {
+        toast.success("Email verified successfully!");
+        navigate("/dashboard");
+      } else {
+        toast.error("Invalid verification code");
+      }
+    } catch (error: any) {
+      toast.error(error.message || "Failed to verify code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleResendCode = async () => {
+    setLoading(true);
+    try {
+      await sendVerificationCode(verificationEmail);
+      toast.success("Verification code resent!");
+    } catch (error: any) {
+      toast.error(error.message || "Failed to resend code");
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (showVerification) {
+    return (
+      <PageTransition>
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background via-muted to-background p-4">
+          <div className="absolute top-4 left-4">
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setShowVerification(false);
+                setVerificationCode("");
+              }}
+              className="gap-2"
+            >
+              <ArrowLeft className="h-4 w-4" />
+              Back to Login
+            </Button>
+          </div>
+          
+          <Card className="w-full max-w-md shadow-lg">
+            <CardHeader className="space-y-1 text-center">
+              <div className="flex justify-center mb-4">
+                <div className="relative">
+                  <img 
+                    src={vistariLogo} 
+                    alt="Vistari" 
+                    className="h-20 w-20 object-cover rounded-2xl shadow-lg" 
+                  />
+                </div>
+              </div>
+              <div className="flex justify-center mb-4">
+                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                  <Mail className="h-6 w-6 text-primary" />
+                </div>
+              </div>
+              <CardTitle className="text-2xl font-bold">Verify Your Email</CardTitle>
+              <CardDescription>
+                We've sent a 6-digit code to<br />
+                <strong className="text-foreground">{verificationEmail}</strong>
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <form onSubmit={handleVerifyCode} className="space-y-6">
+                <div className="flex justify-center">
+                  <InputOTP
+                    maxLength={6}
+                    value={verificationCode}
+                    onChange={setVerificationCode}
+                  >
+                    <InputOTPGroup>
+                      <InputOTPSlot index={0} />
+                      <InputOTPSlot index={1} />
+                      <InputOTPSlot index={2} />
+                      <InputOTPSlot index={3} />
+                      <InputOTPSlot index={4} />
+                      <InputOTPSlot index={5} />
+                    </InputOTPGroup>
+                  </InputOTP>
+                </div>
+                
+                <Button
+                  type="submit"
+                  className="w-full bg-gradient-primary hover:opacity-90"
+                  disabled={loading || verificationCode.length !== 6}
+                >
+                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Verify Email
+                </Button>
+
+                <div className="text-center">
+                  <Button
+                    type="button"
+                    variant="link"
+                    onClick={handleResendCode}
+                    disabled={loading}
+                    className="text-sm"
+                  >
+                    Didn't receive the code? Resend
+                  </Button>
+                </div>
+              </form>
+            </CardContent>
+          </Card>
+        </div>
+      </PageTransition>
+    );
+  }
 
   return (
     <PageTransition>
