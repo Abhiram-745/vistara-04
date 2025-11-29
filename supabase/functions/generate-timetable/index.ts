@@ -38,6 +38,43 @@ function attemptJsonRepair(jsonString: string): string {
   return repaired;
 }
 
+// Fuzzy topic matching - allows partial matches to avoid rejecting valid AI-generated topics
+function isValidTopicFuzzy(sessionTopic: string, validTopicNames: Set<string>): boolean {
+  const normalize = (str: string) => str.toLowerCase().trim()
+    .replace(/[^a-z0-9\s]/g, '') // Remove punctuation
+    .replace(/\s+/g, ' '); // Normalize whitespace
+  
+  const normalizedSession = normalize(sessionTopic);
+  
+  // Exact match first
+  for (const validTopic of validTopicNames) {
+    if (normalize(validTopic) === normalizedSession) return true;
+  }
+  
+  // Partial match - check if session topic is a substring or contains key words
+  const sessionWords = normalizedSession.split(' ').filter(w => w.length > 2);
+  
+  for (const validTopic of validTopicNames) {
+    const validNormalized = normalize(validTopic);
+    const validWords = validNormalized.split(' ').filter(w => w.length > 2);
+    
+    // Check if session topic is a prefix/substring
+    if (validNormalized.includes(normalizedSession) || normalizedSession.includes(validNormalized)) {
+      return true;
+    }
+    
+    // Check word overlap - if 60%+ of session words appear in valid topic, accept it
+    const matchingWords = sessionWords.filter(w => validWords.includes(w) || validNormalized.includes(w));
+    const matchRatio = sessionWords.length > 0 ? matchingWords.length / sessionWords.length : 0;
+    
+    if (matchRatio >= 0.6 && matchingWords.length >= 2) {
+      return true;
+    }
+  }
+  
+  return false;
+}
+
 // Input validation schema - accept both UUID and string subject_ids for backward compatibility
 const inputSchema = z.object({
   subjects: z.array(z.object({
@@ -708,20 +745,110 @@ Use ONLY the preferences and data from this student's timetable creation, includ
 ✓ Topic difficulty / focus list / priority topics
 ✓ Any days marked as rest or busy (events, homework, exams)
 
-**DO NOT assume every study session is 75 minutes.**
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+⚠️ CRITICAL: USE EXACT TOPIC NAMES - MANDATORY ⚠️
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-Instead, customize the length and NUMBER of sessions per day based on:
-• User's preferred session length (from preferences)
-• Total available time that day (end time - start time - events)
-• Topic difficulty (harder topics = longer or more frequent blocks)
-• Upcoming deadlines and exam proximity
-• Focus list topics that should receive more time
+You MUST use the EXACT topic names provided in the topics list below.
+DO NOT paraphrase, shorten, summarize, or modify topic names in ANY way.
+The system validates topic names - modified names will be REJECTED.
+
+✅ CORRECT: Copy the exact topic name character-for-character
+❌ WRONG: Shortening, paraphrasing, or rewording topic names
+
+Example:
+✅ "solve simultaneous linear equations graphically, including from real-life situations"
+❌ "Solve simultaneous equations graphically" (WILL BE REJECTED - too short)
+❌ "Simultaneous equations - graphical solutions" (WILL BE REJECTED - paraphrased)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🕐 FILL THE ENTIRE DAY - MANDATORY SCHEDULING RULE 🕐
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+You MUST schedule study sessions to FILL the available time for each day.
+
+FOR EACH DAY, CALCULATE:
+1. Available minutes = (end time - start time) in minutes
+2. Subtract lunch breaks, existing events
+3. Target study time = available minutes - breaks
+4. Minimum sessions per day = 4-8 sessions (depending on available time)
+
+EXAMPLE FOR 09:00-17:00 (8 hours = 480 minutes):
+- Lunch break (60 min) = 420 active minutes
+- With 50-min sessions + 10-min breaks = 7 sessions
+- Schedule structure:
+  09:00 Session 1 (50 min)
+  09:50 Break (10 min)
+  10:00 Session 2 (50 min)
+  10:50 Break (10 min)
+  11:00 Session 3 (50 min)
+  11:50 Break (10 min)
+  12:00 Lunch (60 min)
+  13:00 Session 4 (50 min)
+  ... continue until 17:00
+
+⚠️ DO NOT generate days with only 1-2 study sessions - this is INCORRECT.
+⚠️ DO NOT leave large gaps filled only with breaks.
+⚠️ EVERY study day should have 4-8 study sessions minimum.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+📏 SESSION LENGTH RULES - USE VARIABLE DURATIONS 📏
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+DO NOT default all sessions to 75 minutes. Choose lengths based on context:
+
+| Context | Session Length |
+|---------|----------------|
+| User set FIXED mode | Use EXACTLY ${preferences.session_duration} min |
+| Focus/difficult topics | 60-90 minutes (priority topics get MORE time) |
+| Regular topics | 45-55 minutes (standard learning) |
+| Review sessions | 30-40 minutes (quick refreshers) |
+| Homework | Use EXACT duration from homework list |
+
+MIX session lengths throughout each day for variety:
+- Morning: Longer focused sessions (60-90 min for difficult topics)
+- Midday: Medium sessions (45-55 min)
+- Afternoon: Mix based on topic priority
+
+⚠️ NEVER generate all 75-minute sessions unless FIXED mode with 75 minutes.
+⚠️ Focus topics should have LONGER sessions than regular topics.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+🎯 FOCUS LIST PRIORITY - CRITICAL ALLOCATION RULES 🎯
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Topics in the FOCUS LIST must receive preferential treatment:
+
+1. MORE TOTAL TIME: Focus topics get 2-3x more sessions than regular topics
+2. EARLIER SLOTS: Schedule focus topics in morning/peak performance hours
+3. LONGER SESSIONS: 60-90 minutes per session (vs 45-55 for regular)
+4. HIGHER FREQUENCY: Appear every 2-3 days, not weekly
+
+ALLOCATION EXAMPLE:
+If 5 focus topics + 10 regular topics = 15 total:
+- Focus topics: 60% of study time (each appears 5-8 times over timetable)
+- Regular topics: 40% of study time (each appears 2-4 times)
+
+FOCUS TOPICS FROM USER (schedule MORE frequently):
+${topicAnalysis?.priorities?.map(p => `⭐ ${p.topic_name} (Priority: ${p.priority_score}/10)`).join('\n') || 'No specific focus priorities set'}
+
+⚠️ Focus topics MUST appear significantly more than non-focus topics.
+⚠️ Give focus topics the BEST time slots (early morning, peak hours).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 **MUST ENSURE:**
 ✓ Timetable never schedules outside the user's chosen time window
 ✓ Total scheduled study time per day does NOT exceed their available time
 ✓ Focus/priority topics appear MORE OFTEN than non-priority topics
-✓ Sessions are in realistic blocks (25-90 minutes with reasonable gaps)
+✓ Sessions use VARIABLE lengths (not all 75 minutes)
+✓ Each day has 4-8 study sessions filling available time
 ✓ All output is clearly structured with date, start time, end time, subject, topic, and notes
 
 ${strictTimeWindowContext}
@@ -1505,8 +1632,8 @@ ${prompt}` }
                 return false;
               }
               
-              // Check if this topic exists in provided lists
-              const isValidTopic = validTopicNames.has(sessionTopic);
+              // Check if this topic exists in provided lists using fuzzy matching
+              const isValidTopic = isValidTopicFuzzy(sessionTopic, validTopicNames);
               const isValidHomework = session.type === 'homework' && validHomeworkTitles.has(sessionTopic);
               
               if (!isValidTopic && !isValidHomework) {
@@ -1546,6 +1673,26 @@ ${prompt}` }
           console.log(`⚠️ Detected ${overlapWarningCount} sessions that overlap events (kept for now to avoid empty schedules).`);
         } else {
           console.log('✓ Schedule validation passed - no overlaps detected');
+        }
+        
+        // Validate session density - warn if days have too few sessions
+        let lowDensityDays = [];
+        for (const [date, sessions] of Object.entries(scheduleData.schedule)) {
+          const studySessions = (sessions as any[]).filter(s => 
+            s.type !== 'break' && 
+            s.type !== 'lunch' && 
+            s.type !== 'event'
+          );
+          if (studySessions.length > 0 && studySessions.length < 3) {
+            lowDensityDays.push({ date, count: studySessions.length });
+          }
+        }
+        
+        if (lowDensityDays.length > 0) {
+          console.warn('⚠️ Low density days detected (fewer than 3 study sessions):', 
+            lowDensityDays.map(d => `${d.date}: ${d.count} sessions`).join(', '));
+        } else {
+          console.log('✓ Session density validation passed - all days have adequate sessions');
         }
       }
 
