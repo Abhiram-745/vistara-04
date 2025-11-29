@@ -365,7 +365,17 @@ const GenerateStep = ({
       onComplete();
     } catch (error: any) {
       console.error("Error generating timetable:", error);
-      toast.error(error.message || "Failed to generate timetable");
+      
+      // Extract user-friendly error message
+      let errorMessage = "Failed to generate timetable. Please try again.";
+      
+      if (error?.message) {
+        errorMessage = error.message;
+      } else if (error?.error) {
+        errorMessage = error.error;
+      }
+      
+      toast.error(errorMessage);
     } finally {
       setLoading(false);
       setGenerationStage("");

@@ -1242,24 +1242,24 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), 120000); // 120 second timeout for large timetables
 
-    // Using Bytez API with Gemini 2.5 Pro for timetable generation
-    const BYTEZ_API_KEY = Deno.env.get('BYTEZ_API_KEY');
+    // Using Lovable AI with Gemini 2.5 Pro for timetable generation
+    const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     
-    if (!BYTEZ_API_KEY) {
-      console.error("BYTEZ_API_KEY not configured");
+    if (!LOVABLE_API_KEY) {
+      console.error("LOVABLE_API_KEY not configured");
       throw new Error("AI service not configured. Please contact support.");
     }
 
     let openaiResult;
     try {
-      console.log("Calling Bytez API for timetable generation...");
+      console.log("Calling Lovable AI for timetable generation...");
       const response = await fetch(
-        'https://api.bytez.com/models/v2/openai/v1/chat/completions',
+        'https://ai.gateway.lovable.dev/v1/chat/completions',
         {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "Authorization": BYTEZ_API_KEY
+            "Authorization": `Bearer ${LOVABLE_API_KEY}`
           },
           body: JSON.stringify({
             model: "google/gemini-2.5-pro",
@@ -1274,8 +1274,18 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
 
       if (!response.ok) {
         const errorText = await response.text();
-        console.error("Bytez API error:", response.status, errorText);
-        throw new Error(`Bytez API request failed: ${response.status}`);
+        console.error("Lovable AI error:", response.status, errorText);
+        
+        // User-friendly error messages
+        if (response.status === 503) {
+          throw new Error("We're experiencing heavy traffic right now. Please try again in a few moments.");
+        } else if (response.status === 429) {
+          throw new Error("Too many requests. Please wait a moment and try again.");
+        } else if (response.status >= 500) {
+          throw new Error("Our AI service is temporarily unavailable. Please try again shortly.");
+        } else {
+          throw new Error(`AI request failed: ${response.status}`);
+        }
       }
 
       openaiResult = await response.json();
@@ -1289,7 +1299,7 @@ Make the schedule practical, achievable, and effective for GCSE exam preparation
       clearTimeout(timeoutId);
     }
 
-    console.log("Bytez Gemini raw result:", JSON.stringify(openaiResult, null, 2));
+    console.log("Lovable AI Gemini raw result:", JSON.stringify(openaiResult, null, 2));
 
     // Extract content from OpenAI response
     let aiResponse: string | undefined;
