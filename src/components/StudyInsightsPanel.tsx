@@ -7,6 +7,12 @@ import { Brain, Sparkles, TrendingUp, TrendingDown, Lightbulb, Target, Loader2, 
 import { toast } from "sonner";
 import PaywallDialog from "@/components/PaywallDialog";
 import { useQueryClient } from "@tanstack/react-query";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const ChartCard = ({ title, icon, children, className = "" }: { 
   title: string; 
@@ -30,15 +36,10 @@ import {
   PieChart,
   Pie,
   Cell,
-  RadarChart,
-  PolarGrid,
-  PolarAngleAxis,
-  PolarRadiusAxis,
-  Radar,
   ResponsiveContainer,
   XAxis,
   YAxis,
-  Tooltip,
+  Tooltip as RechartsTooltip,
   Legend,
 } from "recharts";
 import {
@@ -65,6 +66,7 @@ interface Insight {
     reason: string;
     quotes: string[];
     avgDifficulty?: number;
+    avgFocusLevel?: number;
   }>;
   strongAreas: Array<{
     topic: string;
@@ -72,6 +74,7 @@ interface Insight {
     reason: string;
     quotes: string[];
     avgDifficulty?: number;
+    avgFocusLevel?: number;
   }>;
   learningPatterns: string[];
   recommendedFocus: string[];
@@ -102,6 +105,25 @@ interface Insight {
   };
   overallSummary: string;
 }
+
+// Helper function to normalize completion rate (handle both 0-1 and 0-100 formats)
+const normalizeCompletionRate = (rate: number): number => {
+  if (rate > 1) {
+    // Already a percentage (0-100), just return
+    return Math.min(rate, 100);
+  }
+  // Decimal (0-1), convert to percentage
+  return rate * 100;
+};
+
+// Helper function to normalize difficulty (ensure 1-10 scale)
+const normalizeDifficulty = (difficulty: number): number => {
+  if (difficulty > 10) {
+    // Likely on 0-100 scale, convert to 1-10
+    return Math.min(difficulty / 10, 10);
+  }
+  return Math.min(difficulty, 10);
+};
 
 export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => {
   const queryClient = useQueryClient();
@@ -264,50 +286,103 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                 </TabsList>
 
                     <TabsContent value="overview" className="space-y-6">
-                      {/* Subject Confidence Radar Chart */}
-                      <ChartCard title="Subject Confidence Map" icon={<Target className="h-4 w-4" />}>
-                        <div className="h-[250px] sm:h-[350px] w-full flex items-center justify-center">
-                          <ResponsiveContainer width="100%" height="100%">
-                            <RadarChart 
-                              data={Object.entries(insights.subjectBreakdown).map(([subject, data]) => ({
-                                subject: window.innerWidth < 640 ? (subject.length > 10 ? subject.substring(0, 10) + '...' : subject) : (subject.length > 15 ? subject.substring(0, 15) + '...' : subject),
-                                fullSubject: subject,
-                                confidence: data.confidenceScore,
-                              }))}
-                              margin={{ top: 10, right: 15, bottom: 10, left: 15 }}
-                            >
-                              <PolarGrid stroke="hsl(var(--border))" />
-                              <PolarAngleAxis 
-                                dataKey="subject" 
-                                tick={{ fill: 'hsl(var(--foreground))', fontSize: window.innerWidth < 640 ? 10 : 12 }}
-                              />
-                              <PolarRadiusAxis 
-                                angle={90} 
-                                domain={[0, 10]}
-                                tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: window.innerWidth < 640 ? 9 : 11 }}
-                              />
-                              <Radar
-                                name="Confidence Level"
-                                dataKey="confidence"
-                                stroke="#22c55e"
-                                fill="#22c55e"
-                                fillOpacity={0.3}
-                                strokeWidth={2}
-                              />
-                              <Tooltip 
-                                contentStyle={{
-                                  backgroundColor: 'hsl(var(--card))',
-                                  border: '1px solid hsl(var(--border))',
-                                  borderRadius: '8px',
-                                }}
-                                formatter={(value: any, name: any, props: any) => [
-                                  `${value}/10`,
-                                  props.payload.fullSubject || 'Confidence'
-                                ]}
-                              />
-                            </RadarChart>
-                          </ResponsiveContainer>
-                        </div>
+                      {/* Topic Confidence Heatmap */}
+                      <ChartCard title="Topic Confidence Heatmap" icon={<Target className="h-4 w-4" />}>
+                        <TooltipProvider>
+                          {(() => {
+                            // Build heatmap data from insights
+                            const topicData: Array<{ topic: string; subject: string; confidence: number }> = [];
+                            
+                            // Add struggling topics (low confidence)
+                            insights.strugglingTopics.forEach(t => {
+                              topicData.push({
+                                topic: t.topic,
+                                subject: t.subject,
+                                confidence: Math.max(1, Math.min(10, (t.avgFocusLevel || 30) / 10))
+                              });
+                            });
+                            
+                            // Add strong areas (high confidence)
+                            insights.strongAreas.forEach(t => {
+                              topicData.push({
+                                topic: t.topic,
+                                subject: t.subject,
+                                confidence: Math.max(1, Math.min(10, (t.avgFocusLevel || 80) / 10))
+                              });
+                            });
+
+                            // Helper to get color based on confidence
+                            const getConfidenceColor = (confidence: number): string => {
+                              if (confidence >= 8) return "bg-emerald-500";
+                              if (confidence >= 6) return "bg-green-400";
+                              if (confidence >= 5) return "bg-yellow-400";
+                              if (confidence >= 3) return "bg-orange-400";
+                              return "bg-red-500";
+                            };
+
+                            // Group by subject for better organization
+                            const groupedBySubject = topicData.reduce((acc, item) => {
+                              if (!acc[item.subject]) acc[item.subject] = [];
+                              acc[item.subject].push(item);
+                              return acc;
+                            }, {} as Record<string, typeof topicData>);
+
+                            return topicData.length > 0 ? (
+                              <div className="space-y-4">
+                                {Object.entries(groupedBySubject).map(([subject, topics]) => (
+                                  <div key={subject}>
+                                    <h4 className="text-xs font-semibold mb-2 text-muted-foreground">{subject}</h4>
+                                    <div className="flex flex-wrap gap-2">
+                                      {topics.map((item, idx) => (
+                                        <Tooltip key={idx}>
+                                          <TooltipTrigger asChild>
+                                            <div
+                                              className={`
+                                                w-12 h-12 rounded-lg flex items-center justify-center 
+                                                text-white font-semibold text-sm cursor-pointer
+                                                transition-all hover:scale-105 hover:shadow-lg
+                                                ${getConfidenceColor(item.confidence)}
+                                              `}
+                                            >
+                                              {item.confidence.toFixed(0)}
+                                            </div>
+                                          </TooltipTrigger>
+                                          <TooltipContent className="max-w-[200px]">
+                                            <div className="text-center">
+                                              <p className="font-semibold text-xs">{item.topic}</p>
+                                              <p className="text-xs text-muted-foreground">{item.subject}</p>
+                                              <p className="text-xs mt-1">Confidence: {item.confidence.toFixed(1)}/10</p>
+                                            </div>
+                                          </TooltipContent>
+                                        </Tooltip>
+                                      ))}
+                                    </div>
+                                  </div>
+                                ))}
+                                
+                                {/* Legend */}
+                                <div className="flex items-center justify-center gap-4 mt-4 text-xs pt-4 border-t">
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-4 h-4 rounded bg-emerald-500" />
+                                    <span>High</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-4 h-4 rounded bg-yellow-400" />
+                                    <span>Medium</span>
+                                  </div>
+                                  <div className="flex items-center gap-1">
+                                    <div className="w-4 h-4 rounded bg-red-500" />
+                                    <span>Low</span>
+                                  </div>
+                                </div>
+                              </div>
+                            ) : (
+                              <p className="text-sm text-muted-foreground text-center py-8">
+                                No topic confidence data available yet
+                              </p>
+                            );
+                          })()}
+                        </TooltipProvider>
                       </ChartCard>
 
                       {/* Topics Performance Table */}
@@ -429,7 +504,7 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                             }))}>
                               <XAxis dataKey="subject" tick={{ fill: 'hsl(var(--muted-foreground))' }} />
                               <YAxis domain={[0, 10]} tick={{ fill: 'hsl(var(--muted-foreground))' }} />
-                              <Tooltip 
+                              <RechartsTooltip 
                                 contentStyle={{ 
                                   backgroundColor: 'hsl(var(--card))',
                                   border: '1px solid hsl(var(--border))',
@@ -594,16 +669,16 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                                 <p className="text-xs text-muted-foreground mt-1">
                                   {insights.peakStudyHours.bestTimeRange}
                                 </p>
-                                <div className="mt-3 space-y-1 text-xs">
-                                  <p>
-                                    <span className="font-medium">Completion Rate:</span>{" "}
-                                    {(insights.peakStudyHours.completionRateByWindow[insights.peakStudyHours.bestTimeWindow as keyof typeof insights.peakStudyHours.completionRateByWindow] * 100).toFixed(0)}%
-                                  </p>
-                                  <p>
-                                    <span className="font-medium">Avg Difficulty:</span>{" "}
-                                    {insights.peakStudyHours.avgDifficultyByWindow[insights.peakStudyHours.bestTimeWindow as keyof typeof insights.peakStudyHours.avgDifficultyByWindow]?.toFixed(1)}/10
-                                  </p>
-                                </div>
+                                 <div className="mt-3 space-y-1 text-xs">
+                                   <p>
+                                     <span className="font-medium">Completion Rate:</span>{" "}
+                                     {normalizeCompletionRate(insights.peakStudyHours.completionRateByWindow[insights.peakStudyHours.bestTimeWindow as keyof typeof insights.peakStudyHours.completionRateByWindow]).toFixed(0)}%
+                                   </p>
+                                   <p>
+                                     <span className="font-medium">Avg Difficulty:</span>{" "}
+                                     {normalizeDifficulty(insights.peakStudyHours.avgDifficultyByWindow[insights.peakStudyHours.bestTimeWindow as keyof typeof insights.peakStudyHours.avgDifficultyByWindow] || 0).toFixed(1)}/10
+                                   </p>
+                                 </div>
                               </CardContent>
                             </Card>
 
@@ -619,16 +694,16 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                                 <p className="text-xs text-muted-foreground mt-1">
                                   {insights.peakStudyHours.worstTimeRange}
                                 </p>
-                                <div className="mt-3 space-y-1 text-xs">
-                                  <p>
-                                    <span className="font-medium">Completion Rate:</span>{" "}
-                                    {(insights.peakStudyHours.completionRateByWindow[insights.peakStudyHours.worstTimeWindow as keyof typeof insights.peakStudyHours.completionRateByWindow] * 100).toFixed(0)}%
-                                  </p>
-                                  <p>
-                                    <span className="font-medium">Avg Difficulty:</span>{" "}
-                                    {insights.peakStudyHours.avgDifficultyByWindow[insights.peakStudyHours.worstTimeWindow as keyof typeof insights.peakStudyHours.avgDifficultyByWindow]?.toFixed(1)}/10
-                                  </p>
-                                </div>
+                                 <div className="mt-3 space-y-1 text-xs">
+                                   <p>
+                                     <span className="font-medium">Completion Rate:</span>{" "}
+                                     {normalizeCompletionRate(insights.peakStudyHours.completionRateByWindow[insights.peakStudyHours.worstTimeWindow as keyof typeof insights.peakStudyHours.completionRateByWindow]).toFixed(0)}%
+                                   </p>
+                                   <p>
+                                     <span className="font-medium">Avg Difficulty:</span>{" "}
+                                     {normalizeDifficulty(insights.peakStudyHours.avgDifficultyByWindow[insights.peakStudyHours.worstTimeWindow as keyof typeof insights.peakStudyHours.avgDifficultyByWindow] || 0).toFixed(1)}/10
+                                   </p>
+                                 </div>
                               </CardContent>
                             </Card>
                           </div>
@@ -640,40 +715,40 @@ export const StudyInsightsPanel = ({ timetableId }: StudyInsightsPanelProps) => 
                             <div className="h-[250px] sm:h-[300px] w-full">
                               <ResponsiveContainer width="100%" height="100%">
                                 <BarChart
-                                  data={[
-                                    {
-                                      window: "Morning",
-                                      completion: parseFloat((insights.peakStudyHours.completionRateByWindow.morning * 100).toFixed(0)),
-                                      difficulty: insights.peakStudyHours.avgDifficultyByWindow.morning || 0,
-                                    },
-                                    {
-                                      window: "Afternoon",
-                                      completion: parseFloat((insights.peakStudyHours.completionRateByWindow.afternoon * 100).toFixed(0)),
-                                      difficulty: insights.peakStudyHours.avgDifficultyByWindow.afternoon || 0,
-                                    },
-                                    {
-                                      window: "Evening",
-                                      completion: parseFloat((insights.peakStudyHours.completionRateByWindow.evening * 100).toFixed(0)),
-                                      difficulty: insights.peakStudyHours.avgDifficultyByWindow.evening || 0,
-                                    },
-                                  ]}
+                                   data={[
+                                     {
+                                       window: "Morning",
+                                       completion: parseFloat(normalizeCompletionRate(insights.peakStudyHours.completionRateByWindow.morning).toFixed(0)),
+                                       difficulty: normalizeDifficulty(insights.peakStudyHours.avgDifficultyByWindow.morning || 0),
+                                     },
+                                     {
+                                       window: "Afternoon",
+                                       completion: parseFloat(normalizeCompletionRate(insights.peakStudyHours.completionRateByWindow.afternoon).toFixed(0)),
+                                       difficulty: normalizeDifficulty(insights.peakStudyHours.avgDifficultyByWindow.afternoon || 0),
+                                     },
+                                     {
+                                       window: "Evening",
+                                       completion: parseFloat(normalizeCompletionRate(insights.peakStudyHours.completionRateByWindow.evening).toFixed(0)),
+                                       difficulty: normalizeDifficulty(insights.peakStudyHours.avgDifficultyByWindow.evening || 0),
+                                     },
+                                   ]}
                                   margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
                                 >
                                   <XAxis 
                                     dataKey="window" 
                                     tick={{ fill: 'hsl(var(--foreground))', fontSize: 12 }}
                                   />
-                                  <YAxis 
-                                    tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
-                                  />
-                                  <Tooltip
-                                    contentStyle={{
-                                      backgroundColor: 'hsl(var(--card))',
-                                      border: '1px solid hsl(var(--border))',
-                                      borderRadius: '8px',
-                                      fontSize: 12
-                                    }}
-                                  />
+                                   <YAxis 
+                                     tick={{ fill: 'hsl(var(--muted-foreground))', fontSize: 11 }}
+                                   />
+                                   <RechartsTooltip
+                                     contentStyle={{
+                                       backgroundColor: 'hsl(var(--card))',
+                                       border: '1px solid hsl(var(--border))',
+                                       borderRadius: '8px',
+                                       fontSize: 12
+                                     }}
+                                   />
                                   <Bar 
                                     dataKey="completion" 
                                     name="Completion Rate %" 
