@@ -6,7 +6,9 @@ import { eq, and, desc, gte, lte, or, sql } from "drizzle-orm";
 import bcrypt from "bcryptjs";
 import jwt from "jsonwebtoken";
 import { z } from "zod";
+import { Resend } from "resend";
 
+const resend = new Resend(process.env.RESEND_API_KEY);
 const app = express();
 app.use(cors());
 app.use(express.json({ limit: '10mb' }));
@@ -119,6 +121,119 @@ app.get('/api/auth/user', authenticateToken, async (req: AuthRequest, res: Respo
     res.json({ id: user.id, email: user.email });
   } catch (error: any) {
     res.status(500).json({ error: error.message });
+  }
+});
+
+app.post('/api/send-verification-code', async (req: Request, res: Response) => {
+  try {
+    const { email } = req.body;
+    
+    if (!email) {
+      return res.status(400).json({ error: 'Email is required' });
+    }
+
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    const expiresAt = new Date(Date.now() + 10 * 60 * 1000);
+
+    await db.delete(schema.emailVerifications).where(eq(schema.emailVerifications.email, email.toLowerCase()));
+    
+    await db.insert(schema.emailVerifications).values({
+      email: email.toLowerCase(),
+      code,
+      expiresAt,
+      verified: false,
+      attempts: 0,
+    });
+
+    const { error: emailError } = await resend.emails.send({
+      from: 'Vistari <noreply@vistara-ai.app>',
+      to: email,
+      subject: 'Your Vistari Verification Code',
+      html: `
+        <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
+          <h1 style="color: #6366f1; text-align: center;">Vistari</h1>
+          <h2 style="text-align: center;">Verify Your Email</h2>
+          <p>Your verification code is:</p>
+          <div style="background: #f3f4f6; padding: 20px; text-align: center; border-radius: 8px; margin: 20px 0;">
+            <span style="font-size: 32px; font-weight: bold; letter-spacing: 8px; color: #1f2937;">${code}</span>
+          </div>
+          <p style="color: #6b7280;">This code will expire in 10 minutes.</p>
+          <p style="color: #6b7280; font-size: 12px;">If you didn't request this code, you can safely ignore this email.</p>
+        </div>
+      `,
+    });
+
+    if (emailError) {
+      console.error('Resend error:', emailError);
+      return res.status(500).json({ error: 'Failed to send verification email' });
+    }
+
+    res.json({ success: true, message: 'Verification code sent' });
+  } catch (error: any) {
+    console.error('Send verification error:', error);
+    res.status(500).json({ error: error.message || 'Failed to send verification code' });
+  }
+});
+
+app.post('/api/verify-code', async (req: Request, res: Response) => {
+  try {
+    const { email, code } = req.body;
+    
+    if (!email || !code) {
+      return res.status(400).json({ error: 'Email and code are required' });
+    }
+
+    const [verification] = await db.select()
+      .from(schema.emailVerifications)
+      .where(eq(schema.emailVerifications.email, email.toLowerCase()))
+      .limit(1);
+
+    if (!verification) {
+      return res.status(400).json({ error: 'No verification request found', valid: false });
+    }
+
+    if (verification.attempts && verification.attempts >= 5) {
+      return res.status(400).json({ error: 'Too many attempts. Please request a new code.', valid: false });
+    }
+
+    if (new Date() > new Date(verification.expiresAt)) {
+      return res.status(400).json({ error: 'Verification code has expired', valid: false });
+    }
+
+    await db.update(schema.emailVerifications)
+      .set({ attempts: (verification.attempts || 0) + 1 })
+      .where(eq(schema.emailVerifications.id, verification.id));
+
+    if (verification.code !== code) {
+      return res.status(400).json({ error: 'Invalid verification code', valid: false });
+    }
+
+    await db.update(schema.emailVerifications)
+      .set({ verified: true })
+      .where(eq(schema.emailVerifications.id, verification.id));
+
+    res.json({ valid: true, message: 'Email verified successfully' });
+  } catch (error: any) {
+    console.error('Verify code error:', error);
+    res.status(500).json({ error: error.message || 'Failed to verify code', valid: false });
+  }
+});
+
+app.get('/api/check-email-verified/:email', async (req: Request, res: Response) => {
+  try {
+    const email = req.params.email;
+    
+    const [verification] = await db.select()
+      .from(schema.emailVerifications)
+      .where(and(
+        eq(schema.emailVerifications.email, email.toLowerCase()),
+        eq(schema.emailVerifications.verified, true)
+      ))
+      .limit(1);
+
+    res.json({ verified: !!verification });
+  } catch (error: any) {
+    res.status(500).json({ error: error.message, verified: false });
   }
 });
 
