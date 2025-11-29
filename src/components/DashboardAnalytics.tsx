@@ -311,8 +311,8 @@ export const DashboardAnalytics = ({ userId }: { userId: string }) => {
     <div className="space-y-6">
       {/* Section Header */}
       <div className="section-header">
-        <div className="w-10 h-10 rounded-xl bg-gradient-primary flex items-center justify-center shadow-md">
-          <Brain className="h-5 w-5 text-white" />
+        <div className="w-10 h-10 rounded-xl bg-gradient-to-br from-cyan-500 to-blue-600 flex items-center justify-center shadow-md">
+          <Activity className="h-5 w-5 text-white" />
         </div>
         <div>
           <h2 className="section-title">✨ Study Analytics & AI Insights</h2>
