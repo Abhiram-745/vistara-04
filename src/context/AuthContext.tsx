@@ -129,7 +129,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (data.user) {
         // Create profile with full name
         await supabase.from('profiles').upsert({
-          id: data.user.id,
+          user_id: data.user.id,
           full_name: fullName || null
         });
 

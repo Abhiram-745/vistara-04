@@ -105,7 +105,7 @@ const Admin = () => {
 
       const { data: profiles } = await supabase
         .from("profiles")
-        .select("id, full_name, avatar_url, created_at");
+        .select("user_id, full_name, avatar_url, created_at");
 
       const { data: roles } = await supabase
         .from("user_roles")
@@ -116,7 +116,7 @@ const Admin = () => {
         .select("user_id, reason");
 
       const userList: UserData[] = authUsers.map((authUser: any) => {
-        const profile = profiles?.find((p) => p.id === authUser.id);
+        const profile = profiles?.find((p) => p.user_id === authUser.id);
         const role = roles?.find((r) => r.user_id === authUser.id);
         const banned = bannedUsers?.find((b) => b.user_id === authUser.id);
         
