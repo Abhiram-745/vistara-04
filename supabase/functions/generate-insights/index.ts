@@ -187,14 +187,14 @@ Format your response as JSON with this structure:
     "worstTimeWindow": "morning|afternoon|evening",
     "worstTimeRange": "HH:MM-HH:MM",
     "completionRateByWindow": {
-      "morning": number,
-      "afternoon": number,
-      "evening": number
+      "morning": number (decimal 0.0-1.0 where 1.0 = 100% completion rate),
+      "afternoon": number (decimal 0.0-1.0 where 1.0 = 100% completion rate),
+      "evening": number (decimal 0.0-1.0 where 1.0 = 100% completion rate)
     },
     "avgDifficultyByWindow": {
-      "morning": number,
-      "afternoon": number,
-      "evening": number
+      "morning": number (scale 1-10 where 10 = most difficult, based on inverse of focus level),
+      "afternoon": number (scale 1-10 where 10 = most difficult),
+      "evening": number (scale 1-10 where 10 = most difficult)
     },
     "recommendation": "string describing when to schedule hard vs easy topics"
   },
