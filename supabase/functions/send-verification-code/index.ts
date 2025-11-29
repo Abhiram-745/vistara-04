@@ -96,7 +96,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: "Vistari <onboarding@resend.dev>",
+      from: Deno.env.get("RESEND_FROM_EMAIL") || "Vistari <onboarding@resend.dev>",
       to: [email],
       subject: "Your Vistari Verification Code",
       html: `
